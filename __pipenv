@@ -1,0 +1,7 @@
+#!/bin/bash
+
+dn="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+source "$dn/pyenv/bin/activate"
+python3 -m pipenv "$@"
+deactivate

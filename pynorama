@@ -1,0 +1,11 @@
+#!/bin/bash
+
+dn="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+if [ -z "$PYTHONPATH" ]; then
+  export PYTHONPATH="$dn/src"
+elif [[ ":$PYTHONPATH:" != *":$dn/src:"* ]]; then
+  export PYTHONPATH="$dn/src:$PYTHONPATH"
+fi
+
+"$dn/__python" "$dn/src/pynorama.py" "$@"
