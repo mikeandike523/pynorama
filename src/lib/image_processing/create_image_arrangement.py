@@ -6,22 +6,10 @@ import os
 import shutil
 
 
-@dataclass
-class RGBADataWithPosition:
-    x: float
-    y: float
-    pixels: np.ndarray
-
-    def get_width(self) -> int:
-        """Returns the width of the image (number of columns in the array)."""
-        return self.pixels.shape[1]
-
-    def get_height(self) -> int:
-        """Returns the height of the image (number of rows in the array)."""
-        return self.pixels.shape[0]
+from .RGBAImage import RGBAImage
 
 
-def save_image(image: RGBADataWithPosition, directory: str, filename: str) -> str:
+def save_image(image: RGBAImage, directory: str, filename: str) -> str:
     """Save the RGBA image as a PNG file in the specified directory."""
     img = Image.fromarray(image.pixels, "RGBA")
     file_path = os.path.join(directory, filename)
@@ -30,7 +18,7 @@ def save_image(image: RGBADataWithPosition, directory: str, filename: str) -> st
 
 
 def create_image_arrangement(
-    images: List[RGBADataWithPosition], output_folder: str
+    images: List[RGBAImage], output_folder: str
 ) -> str:
     # Ensure the output directory exists, recreate if necessary
     if os.path.exists(output_folder):

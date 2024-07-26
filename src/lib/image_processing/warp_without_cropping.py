@@ -1,8 +1,10 @@
 import cv2
 import numpy as np
 
+from .apply_h_matrix_to_point import apply_h_matrix_to_point
 
-def warp_by_corners(img, warped_corners):
+
+def warp_without_cropping(img, H):
     """
     Warps an image based on the given warped corners
     and expands the image with a specified background color.
@@ -25,8 +27,9 @@ def warp_by_corners(img, warped_corners):
         [[0, 0], [width, 0], [width, height], [0, height]]
     ).reshape(-1, 1, 2)
 
-    # Compute the homography matrix
-    H, _ = cv2.findHomography(original_corners, warped_corners)
+    warped_corners = np.array(
+        [apply_h_matrix_to_point(corner, H) for corner in original_corners], dtype=float
+    )
 
     # Compute the size of the output image
     warped_corners = warped_corners.reshape(-1, 2)

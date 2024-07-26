@@ -1,4 +1,5 @@
 pyenv
 **/__pycache__
 testing/resources
+testing/output
 **/.DS_Store
