@@ -174,9 +174,11 @@ You are missing the following files:
     with open(os.path.join(output_folder, "boundary.svg"), "w") as fl:
         fl.write(svg_text)
 
-    boundary_sequence_small = [0.25 * boundary for boundary in boundary_sequence]
+    boundary_sequence_xsmall = [
+        1 / 16 * boundary.copy() for boundary in boundary_sequence
+    ]
 
-    svg_text = boundary_svg(boundary_sequence_small)
+    svg_text = boundary_svg(boundary_sequence_xsmall)
 
-    with open(os.path.join(output_folder, "boundary_small.svg"), "w") as fl:
+    with open(os.path.join(output_folder, "boundary_xsmall.svg"), "w") as fl:
         fl.write(svg_text)
