@@ -1,5 +1,6 @@
 import os
 
+import cv2
 import numpy as np
 
 from lib.image_processing import (
@@ -11,6 +12,7 @@ from lib.image_processing import (
 )
 from lib import make_fresh_folder
 from lib.image_processing.debugging import boundary_svg
+from lib.image_processing import create_image_arrangement
 
 
 def perform_analysis(input_folder, output_folder):
@@ -182,3 +184,29 @@ You are missing the following files:
 
     with open(os.path.join(output_folder, "boundary_xsmall.svg"), "w") as fl:
         fl.write(svg_text)
+
+    images = []
+
+    for found_file in found_files:
+        images.append(RGBAImage.from_file(os.path.join(input_folder, found_file)))
+
+    warped_images = []
+    locations = []
+
+    for boundary, image, H in zip(boundary_sequence, images, H_seq):
+        A, B, C, D = boundary
+        dA = A - A
+        dB = B - A
+        dC = C - A
+        dD = D - A
+        warp_H = cv2.getPerspectiveTransform(
+            np.array([dA, dB, dC, dD], np.float32),
+            np.array(image.corners(), np.float32),
+        )
+        warped_image = warp_without_cropping(image.pixels, warp_H)
+        warped_images.append(warped_image)
+        locations.append(A)
+
+    create_image_arrangement(
+        warped_images, locations, os.path.join(output_folder, "arrangement")
+    )

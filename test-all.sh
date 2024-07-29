@@ -1,8 +1,11 @@
 #!/bin/bash
 
+rm  -rf "./testing/output"
+mkdir "./testing/output"
+
 # Define the input and output directories
 input_dir="./testing/resources/test-sets"
-output_dir="./testing/output"
+output_dir="./testing/output/test-sets"
 
 # Check if the input directory exists
 if [ ! -d "$input_dir" ]; then

@@ -3,3 +3,4 @@ pyenv
 testing/resources
 testing/output
 **/.DS_Store
+node_modules
