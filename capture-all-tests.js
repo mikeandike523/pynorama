@@ -19,7 +19,7 @@ async function getSvgDimensions(filePath) {
 async function processDirectory(dirName) {
   const inputPath = path.join(INPUT_DIR, dirName);
   const outputPath = path.join(OUTPUT_DIR, dirName);
-  const svgPath = path.join(inputPath, "output.svg");
+  const svgPath = path.join(inputPath,"arrangement", "output.svg");
 
   // Step 1: Create or clear output directory
   await fs.ensureDir(outputPath);
