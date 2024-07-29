@@ -10,6 +10,7 @@ numpy = "*"
 pillow = "*"
 opencv-python = "*"
 opencv-contrib-python = "*"
+termcolor = "*"
 
 [requires]
 python_version = "3.8"
