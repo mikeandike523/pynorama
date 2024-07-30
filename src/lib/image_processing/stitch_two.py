@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 
+NUM_GOOD_MATCHES = 6
+GOOD_MATCH_CUTOFF = 0.7
+
 
 def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     """
@@ -32,16 +35,24 @@ def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     # Store all the good matches as per Lowe's ratio test.
     good_matches = []
     for m, n in matches:
-        if m.distance < 0.7 * n.distance:
+        if m.distance < GOOD_MATCH_CUTOFF * n.distance:
             good_matches.append(m)
 
     # Need at least 4 good matches to find the homography
-    if len(good_matches) < 4:
-        raise ValueError("Not enough matches are found - {}/{}".format(len(good_matches), 4))
+    if len(good_matches) < NUM_GOOD_MATCHES:
+        raise ValueError(
+            "Not enough matches are found - {}/{}".format(
+                len(good_matches), NUM_GOOD_MATCHES
+            )
+        )
 
     # Extract location of good matches
-    points_A = np.float32([keypoints_A[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-    points_B = np.float32([keypoints_B[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    points_A = np.float32([keypoints_A[m.trainIdx].pt for m in good_matches]).reshape(
+        -1, 1, 2
+    )
+    points_B = np.float32([keypoints_B[m.queryIdx].pt for m in good_matches]).reshape(
+        -1, 1, 2
+    )
 
     # Find the homography matrix
     H, mask = cv2.findHomography(points_B, points_A, cv2.RANSAC, 5.0)

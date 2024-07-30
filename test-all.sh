@@ -13,7 +13,7 @@ if [ ! -d "$input_dir" ]; then
     exit 1
 fi
 
-# Create the output directory if it doesn't exist
+rm -rf "$output_dir"
 mkdir -p "$output_dir"
 
 # Iterate over each directory in the input directory
@@ -26,7 +26,7 @@ for dir in "$input_dir"/*; do
         output_path="$output_dir/$dir_basename"
 
         # Run the command
-        ./pynorama "./testing/resources/test-sets/$dir_basename" "$output_path"
+        ./pynorama "./testing/resources/test-sets/$dir_basename" "$output_path.png"
 
         # Check if the command was successful
         if [ $? -ne 0 ]; then

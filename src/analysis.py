@@ -15,15 +15,55 @@ from lib.image_processing.debugging import boundary_svg
 from lib.image_processing import create_image_arrangement
 
 
-def perform_analysis(input_folder, output_folder):
+def top_left_from_points(pts):
+    pts = np.array(pts, float)
+    return np.min(pts, axis=0)
 
-    if not os.path.exists(input_folder):
-        raise FileNotFoundError("Input folder path does not exist.")
 
-    if not os.path.isdir(input_folder):
-        raise ValueError("Input folder path is not a directory.")
+def points_range_x(pts):
+    return np.max(pts[:, 0]) - np.min(pts[:, 0])
 
-    make_fresh_folder(output_folder)
+
+def points_range_y(pts):
+    return np.max(pts[:, 1]) - np.min(pts[:, 1])
+
+
+def top_right_from_points(pts):
+    pts = np.array(pts, float)
+    tl = top_left_from_points(pts)
+    return tl + np.array([points_range_x(pts), 0])
+
+
+def bottom_left_from_points(pts):
+    pts = np.array(pts, float)
+    tl = top_left_from_points(pts)
+    return tl + np.array([0, points_range_y(pts)])
+
+
+def bottom_right_from_points(pts):
+    pts = np.array(pts, float)
+    tl = top_left_from_points(pts)
+    return tl + np.array([points_range_x(pts), points_range_y(pts)])
+
+
+def extent_corners_from_points(pts):
+    return np.array(
+        [
+            top_left_from_points(pts),
+            top_right_from_points(pts),
+            bottom_right_from_points(pts),
+            bottom_left_from_points(pts),
+        ],
+        float,
+    )
+
+
+def perform_analysis(input_folder, output_file):
+
+    if os.path.exists(output_file):
+        if not os.path.isfile(output_file):
+            raise ValueError(f"{output_file} already exists and is not a file.")
+        os.remove(output_file)
 
     permitted_extensions = [".tif", ".tiff", ".jpg", ".jpeg", ".png", ".gif", ".bmp"]
 
@@ -126,20 +166,19 @@ You are missing the following files:
         last_corner_C = corner_seq_C[-1]
         last_corner_D = corner_seq_D[-1]
 
-        delta_last_corner_A = last_corner_A - last_corner_A
-        delta_last_corner_B = last_corner_B - last_corner_A
-        delta_last_corner_C = last_corner_C - last_corner_A
-        delta_last_corner_D = last_corner_D - last_corner_A
+        tlc = top_left_from_points(
+            [last_corner_A, last_corner_B, last_corner_C, last_corner_D]
+        )
 
-        delta_next_corner_A = apply_h_matrix_to_point(delta_last_corner_A, H)
-        delta_next_corner_B = apply_h_matrix_to_point(delta_last_corner_B, H)
-        delta_next_corner_C = apply_h_matrix_to_point(delta_last_corner_C, H)
-        delta_next_corner_D = apply_h_matrix_to_point(delta_last_corner_D, H)
+        delta_next_corner_A = apply_h_matrix_to_point(init_A.copy(), H)
+        delta_next_corner_B = apply_h_matrix_to_point(init_B.copy(), H)
+        delta_next_corner_C = apply_h_matrix_to_point(init_C.copy(), H)
+        delta_next_corner_D = apply_h_matrix_to_point(init_D.copy(), H)
 
-        next_corner_A = last_corner_A + delta_next_corner_A
-        next_corner_B = last_corner_A + delta_next_corner_B
-        next_corner_C = last_corner_A + delta_next_corner_C
-        next_corner_D = last_corner_A + delta_next_corner_D
+        next_corner_A = tlc + delta_next_corner_A
+        next_corner_B = tlc + delta_next_corner_B
+        next_corner_C = tlc + delta_next_corner_C
+        next_corner_D = tlc + delta_next_corner_D
 
         corner_seq_A.append(next_corner_A)
         corner_seq_B.append(next_corner_B)
@@ -170,21 +209,6 @@ You are missing the following files:
         - np.array([(min_x, min_y) for _ in range(boundary.shape[0])], dtype=float)
         for boundary in boundary_sequence
     ]
-
-    svg_text = boundary_svg(boundary_sequence)
-
-    with open(os.path.join(output_folder, "boundary.svg"), "w") as fl:
-        fl.write(svg_text)
-
-    boundary_sequence_xsmall = [
-        1 / 16 * boundary.copy() for boundary in boundary_sequence
-    ]
-
-    svg_text = boundary_svg(boundary_sequence_xsmall)
-
-    with open(os.path.join(output_folder, "boundary_xsmall.svg"), "w") as fl:
-        fl.write(svg_text)
-
     images = []
 
     for found_file in found_files:
@@ -193,21 +217,12 @@ You are missing the following files:
     warped_images = []
     locations = []
 
-    for boundary, image, H in zip(boundary_sequence, images, H_seq):
-        A, B, C, D = boundary
-        dA = A - A
-        dB = B - A
-        dC = C - A
-        dD = D - A
-        # warp_H = cv2.getPerspectiveTransform(
-        #     np.array([dA, dB, dC, dD], np.float32),
-        #     np.array(image.corners(), np.float32),
-        # )
-        warp_H = np.linalg.inv(H)
+    for boundary, image in zip(boundary_sequence, images):
+        src = np.array(init_image.corners()).astype(np.float32)
+        dst = boundary.astype(np.float32)
+        warp_H = cv2.getPerspectiveTransform(src, dst)
         warped_image = warp_without_cropping(image.pixels, warp_H)
         warped_images.append(warped_image)
-        locations.append(A)
+        locations.append(np.array(boundary[0], float).round().astype(int))
 
-    create_image_arrangement(
-        warped_images, locations, os.path.join(output_folder, "arrangement.png")
-    )
+    create_image_arrangement(warped_images, locations, output_file)
