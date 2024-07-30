@@ -16,65 +16,64 @@ async function getSvgDimensions(filePath) {
   return { width: parseInt(width), height: parseInt(height) };
 }
 
-async function processDirectory(dirName) {
+async function getCurrentPage(browser) {
+  const targets = browser.targets();
+  for (let i = 0, I = targets.length; i < I; ++i) {
+    const target = targets[i];
+    const page = await target.page();
+    if (page) {
+      return page;
+    }
+  }
+  return null;
+}
+
+async function processDirectory(browser, dirName) {
   const inputPath = path.join(INPUT_DIR, dirName);
-  const svgPath = path.join(inputPath, "arrangement", "output.svg");
-  const htmlPath = path.join(inputPath,"arrangement", "arrangement.html");
+  const htmlPath = path.join(inputPath, "arrangement", "arrangement.html");
 
-  // Step 2: Get SVG dimensions
-  const { width, height } = await getSvgDimensions(svgPath);
-
-  // Step 3 & 4: Open browser and navigate to SVG
-  const browser = await puppeteer.launch({
-    // headless: "new",
-    headless: false,
-    args: ["--no-sandbox", "--disable-setuid-sandbox","--start-maximized"],
-    defaultViewport: null,
-
-  });
-  const page = await browser.newPage();
-  await page.setViewport({ width, height });
-
-
+  const page = await getCurrentPage(browser);
 
   await page.goto(`file://${path.resolve(htmlPath)}`);
 
-  // delay 1000 millis
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  
   // set page zoom to 0.25
   await page.evaluate(() => {
-    document.body.style.zoom = "0.25";
-  })
+    document.body.style.zoom = "10%";
+  });
 
-  // delay 5000 millis
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  // delay 1000 millis
 
-// screenshow element with id svg-container
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  // screenshow element with id svg-container
   const svgContainer = await page.$("#svg-container");
 
   // Screenshot the SVG container
   await svgContainer.screenshot({
     path: path.join(OUTPUT_DIR, `${dirName}.png`),
   });
+}
 
+async function main() {
+  await fs.ensureDir(OUTPUT_DIR);
+  await fs.emptyDir(OUTPUT_DIR);
+
+  const directories = await fs.readdir(INPUT_DIR);
+  // Step 3 & 4: Open browser and navigate to SVG
+  const browser = await puppeteer.launch({
+    // headless: "new",
+    headless: false,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"],
+    defaultViewport: null,
+  });
+
+  for (const dir of directories) {
+    if ((await fs.stat(path.join(INPUT_DIR, dir))).isDirectory()) {
+      await processDirectory(browser, dir);
+    }
+  }
 
   await browser.close();
 }
 
-async function main() {
-
-  await fs.ensureDir(OUTPUT_DIR)
-  await fs.emptyDir(OUTPUT_DIR)
-
-  const directories = await fs.readdir(INPUT_DIR);
-
-  for (const dir of directories) {
-    if ((await fs.stat(path.join(INPUT_DIR, dir))).isDirectory()) {
-      await processDirectory(dir);
-    }
-  }
-}
-
-await main()
+await main();
