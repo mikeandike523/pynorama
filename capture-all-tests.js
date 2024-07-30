@@ -45,11 +45,8 @@ async function processDirectory(browser, dirName) {
 
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  // screenshow element with id svg-container
-  const svgContainer = await page.$("#svg-container");
-
   // Screenshot the SVG container
-  await svgContainer.screenshot({
+  await page.screenshot({
     path: path.join(OUTPUT_DIR, `${dirName}.png`),
   });
 }
