@@ -72,11 +72,11 @@ def create_image_arrangement(
         f'<meta name="viewport" content="width=device-width, initial-scale=1.0">'
         f"<title>Image Arrangement</title>"
         f"<style>"
-        f"  .svg-container {{ overflow: auto; }}"
+        f"  .svg-container {{ overflow: auto}}"
         f"</style>"
         f"</head>"
-        f"<body>"
-        f'<div class="svg-container">'
+        f"<body style=\"overflow: auto;\">"
+        f'<div id="svg-container" style=\"width: {width}px; height: {height}px;\">'
         f"{svg_str}"
         f"</div>"
         f"</body>"

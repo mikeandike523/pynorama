@@ -18,36 +18,56 @@ async function getSvgDimensions(filePath) {
 
 async function processDirectory(dirName) {
   const inputPath = path.join(INPUT_DIR, dirName);
-  const outputPath = path.join(OUTPUT_DIR, dirName);
-  const svgPath = path.join(inputPath,"arrangement", "output.svg");
-
-  // Step 1: Create or clear output directory
-  await fs.ensureDir(outputPath);
-  await fs.emptyDir(outputPath);
+  const svgPath = path.join(inputPath, "arrangement", "output.svg");
+  const htmlPath = path.join(inputPath,"arrangement", "arrangement.html");
 
   // Step 2: Get SVG dimensions
   const { width, height } = await getSvgDimensions(svgPath);
 
   // Step 3 & 4: Open browser and navigate to SVG
   const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    // headless: "new",
+    headless: false,
+    args: ["--no-sandbox", "--disable-setuid-sandbox","--start-maximized"],
+    defaultViewport: null,
+
   });
   const page = await browser.newPage();
   await page.setViewport({ width, height });
-  await page.goto(`file://${path.resolve(svgPath)}`);
 
-  // Step 5: Take screenshot
-  await page.screenshot({
-    path: path.join(outputPath, `${dirName}.png`),
-    fullPage: true,
+
+
+  await page.goto(`file://${path.resolve(htmlPath)}`);
+
+  // delay 1000 millis
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  
+  // set page zoom to 0.25
+  await page.evaluate(() => {
+    document.body.style.zoom = "0.25";
+  })
+
+  // delay 5000 millis
+  await new Promise(resolve => setTimeout(resolve, 5000));
+
+// screenshow element with id svg-container
+  const svgContainer = await page.$("#svg-container");
+
+  // Screenshot the SVG container
+  await svgContainer.screenshot({
+    path: path.join(OUTPUT_DIR, `${dirName}.png`),
   });
 
-  // Step 6: Close browser
+
   await browser.close();
 }
 
 async function main() {
+
+  await fs.ensureDir(OUTPUT_DIR)
+  await fs.emptyDir(OUTPUT_DIR)
+
   const directories = await fs.readdir(INPUT_DIR);
 
   for (const dir of directories) {
