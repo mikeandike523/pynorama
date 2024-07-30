@@ -33,12 +33,26 @@ class RGBAInfiniteCanvas:
             new_height = max(required_height, self.canvas.shape[0])
             self.expand_canvas(new_width, new_height)
 
+        existing = self.canvas[
+            top_left_y : top_left_y + pixel_height,
+            top_left_x : top_left_x + pixel_width,
+            :,
+        ]
+
+        transparent_region = pixel_array[:, :, 3] == 0
+
+        pixel_array_copy = pixel_array.copy()
+
+        # make the values of pixel_array_copy
+        # be the values of existing pixels in transparent region
+        pixel_array_copy[transparent_region, :] = existing[transparent_region, :]
+
         # Place the pixel array onto the canvas
         self.canvas[
             top_left_y : top_left_y + pixel_height,
             top_left_x : top_left_x + pixel_width,
             :,
-        ] = pixel_array
+        ] = pixel_array_copy
 
     def get_canvas(self):
         return self.canvas
