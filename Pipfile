@@ -11,6 +11,8 @@ pillow = "*"
 opencv-python = "*"
 opencv-contrib-python = "*"
 termcolor = "*"
+pympler = "*"
+humanfriendly = "*"
 
 [requires]
 python_version = "3.8"

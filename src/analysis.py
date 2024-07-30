@@ -199,14 +199,15 @@ You are missing the following files:
         dB = B - A
         dC = C - A
         dD = D - A
-        warp_H = cv2.getPerspectiveTransform(
-            np.array([dA, dB, dC, dD], np.float32),
-            np.array(image.corners(), np.float32),
-        )
+        # warp_H = cv2.getPerspectiveTransform(
+        #     np.array([dA, dB, dC, dD], np.float32),
+        #     np.array(image.corners(), np.float32),
+        # )
+        warp_H = np.linalg.inv(H)
         warped_image = warp_without_cropping(image.pixels, warp_H)
         warped_images.append(warped_image)
         locations.append(A)
 
     create_image_arrangement(
-        warped_images, locations, os.path.join(output_folder, "arrangement")
+        warped_images, locations, os.path.join(output_folder, "arrangement.png")
     )
