@@ -297,6 +297,31 @@ You are missing the following files:
         for boundary, anchor in zip(boundaries_reverse_pass, anchors_reverse_pass)
     ]
 
+    anchors_weighted = [
+        weighted_mean_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
+            anchors_forward_pass, anchors_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+        )
+    ]
+
+    deltas_weighted = [
+        weighted_mean_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
+            deltas_forward_pass, deltas_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+            )
+    ]
+
+    anchors_selected= [
+        selection_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
+            anchors_forward_pass, anchors_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+        )
+    ]
+
+    deltas_selected = [
+        selection_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
+            deltas_forward_pass, deltas_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+            )
+    ]
+
+
     oext = os.path.splitext(output_file)[1]
 
     odn = os.path.dirname(output_file)
@@ -304,6 +329,8 @@ You are missing the following files:
     obasename = os.path.splitext(os.path.basename(output_file))[0]
     oname_fwd = obasename + "-forward" + oext
     oname_rev = obasename + "-reverse" + oext
+    oname_weighted = obasename + "-weighted" + oext
+    oname_selected = obasename + "-selected" + oext
 
     def output_image(anchors, deltas, oname):
 
@@ -327,3 +354,5 @@ You are missing the following files:
 
     output_image(anchors_forward_pass, deltas_forward_pass, oname_fwd)
     output_image(anchors_reverse_pass, deltas_reverse_pass, oname_rev)
+    output_image(anchors_weighted, deltas_weighted, oname_weighted)
+    output_image(anchors_selected, deltas_selected, oname_selected)
