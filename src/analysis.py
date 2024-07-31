@@ -269,18 +269,6 @@ You are missing the following files:
     boundaries_reverse_pass = list(reversed(boundaries_reverse_pass))
     confidences_reverse_pass = list(reversed(confidences_reverse_pass))
 
-    print(
-        colored(
-            f"forward confidences: {' '.join(map(lambda x: f"{x:.3f}",confidences_forward_pass))}", "red"
-        )
-    )
-    print(
-        colored(
-            f"reverse confidences: {' '.join(map(lambda x: f"{x:.3f}",confidences_reverse_pass))}",
-            "green",
-        )
-    )
-
     anchors_forward_pass = [
         np.mean(boundary, axis=0) for boundary in boundaries_forward_pass
     ]
@@ -298,29 +286,44 @@ You are missing the following files:
     ]
 
     anchors_weighted = [
-        weighted_mean_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
-            anchors_forward_pass, anchors_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            anchors_forward_pass,
+            anchors_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
         )
     ]
 
     deltas_weighted = [
-        weighted_mean_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
-            deltas_forward_pass, deltas_reverse_pass, confidences_forward_pass, confidences_reverse_pass
-            )
+        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            deltas_forward_pass,
+            deltas_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
+        )
     ]
 
-    anchors_selected= [
-        selection_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
-            anchors_forward_pass, anchors_reverse_pass, confidences_forward_pass, confidences_reverse_pass
+    anchors_selected = [
+        selection_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            anchors_forward_pass,
+            anchors_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
         )
     ]
 
     deltas_selected = [
-        selection_of_numpy_arrays([a,b],[ca,cb]) for a, b, ca, cb in zip(
-            deltas_forward_pass, deltas_reverse_pass, confidences_forward_pass, confidences_reverse_pass
-            )
+        selection_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            deltas_forward_pass,
+            deltas_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
+        )
     ]
-
 
     oext = os.path.splitext(output_file)[1]
 
@@ -351,6 +354,17 @@ You are missing the following files:
             locations.append(tlc)
 
         create_image_arrangement(warped_images, locations, os.path.join(odn, oname))
+
+    confidences_report = "Forward" + "    " + "Reverse\n"
+    for ca, cb in zip(confidences_forward_pass, confidences_reverse_pass):
+        ca_str = f"{ca:.3f}"
+        cb_str = f"{cb:.3f}"
+        pad1 = " " * (len("Forward") - len(ca_str))
+        pad2 = " " * (len("Reverse") - len(cb_str))
+        confidences_report += f"{ca_str}{pad1}    {cb_str}{pad2}\n"
+
+    with open(os.path.join(odn, "confidences.txt"), "w") as f:
+        f.write(confidences_report)
 
     output_image(anchors_forward_pass, deltas_forward_pass, oname_fwd)
     output_image(anchors_reverse_pass, deltas_reverse_pass, oname_rev)
