@@ -363,7 +363,7 @@ You are missing the following files:
         pad2 = " " * (len("Reverse") - len(cb_str))
         confidences_report += f"{ca_str}{pad1}    {cb_str}{pad2}\n"
 
-    with open(os.path.join(odn, "confidences.txt"), "w") as f:
+    with open(os.path.join(odn, f"{obasename}-confidences.txt"), "w") as f:
         f.write(confidences_report)
 
     output_image(anchors_forward_pass, deltas_forward_pass, oname_fwd)
