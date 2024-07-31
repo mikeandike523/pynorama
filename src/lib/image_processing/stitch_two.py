@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-NUM_GOOD_MATCHES = 6
+NUM_GOOD_MATCHES = 4
 GOOD_MATCH_CUTOFF = 0.7
 
 

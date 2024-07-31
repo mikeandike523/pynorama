@@ -58,73 +58,7 @@ def extent_corners_from_points(pts):
     )
 
 
-def perform_analysis(input_folder, output_file):
-
-    if os.path.exists(output_file):
-        if not os.path.isfile(output_file):
-            raise ValueError(f"{output_file} already exists and is not a file.")
-        os.remove(output_file)
-
-    permitted_extensions = [".tif", ".tiff", ".jpg", ".jpeg", ".png", ".gif", ".bmp"]
-
-    found_files = [
-        file
-        for file in os.listdir(input_folder)
-        if any(file.lower().endswith(ext) for ext in permitted_extensions)
-    ]
-
-    found_integers = []
-    found_integers_files = {}
-
-    for file in found_files:
-        without_ext = os.path.splitext(file)[0]
-        without_ext = without_ext.lstrip("0")
-        if without_ext == "":
-            without_ext = "0"
-        try:
-            number = int(without_ext)
-            found_integers.append(number)
-            found_integers_files[number] = file
-        except ValueError as e:
-            raise ValueError(
-                f"""File {file} was not an integer.
-Please put the files in order with names that contain only integers.
-"""
-            ) from e
-
-    if len(found_integers) < 2:
-        raise ValueError("At least two valid files are needed.")
-
-    found_integers.sort()
-
-    lowest = found_integers[0]
-    highest = found_integers[-1]
-
-    missing = []
-
-    for i in range(lowest, highest + 1):
-        if i not in found_integers:
-            missing.append(i)
-
-    if len(missing) > 0:
-        raise ValueError(
-            f"""
-Missing one or more files:
-                         
-The lowest image index in your folder is {lowest}.
-The highest image index in your folder is {highest}.
-
-You are missing the following files:
-
-{", ".join(map(str, missing))}
-"""
-        )
-
-    print(f"Found files for image index range {lowest} to {highest} (inclusive):")
-    found_files = [found_integers_files[i] for i in found_integers]
-    for file in found_files:
-        print(file)
-
+def perform_analysis_pass(input_folder, found_files):
     print("Testing pair stitchability...")
 
     H_seq = []
@@ -209,20 +143,92 @@ You are missing the following files:
         - np.array([(min_x, min_y) for _ in range(boundary.shape[0])], dtype=float)
         for boundary in boundary_sequence
     ]
-    images = []
 
-    for found_file in found_files:
-        images.append(RGBAImage.from_file(os.path.join(input_folder, found_file)))
+    return boundary_sequence, H_seq
+
+
+def perform_analysis(input_folder, output_file):
+
+    if os.path.exists(output_file):
+        if not os.path.isfile(output_file):
+            raise ValueError(f"{output_file} already exists and is not a file.")
+        os.remove(output_file)
+
+    permitted_extensions = [".tif", ".tiff", ".jpg", ".jpeg", ".png", ".gif", ".bmp"]
+
+    found_files = [
+        file
+        for file in os.listdir(input_folder)
+        if any(file.lower().endswith(ext) for ext in permitted_extensions)
+    ]
+
+    found_integers = []
+    found_integers_files = {}
+
+    for file in found_files:
+        without_ext = os.path.splitext(file)[0]
+        without_ext = without_ext.lstrip("0")
+        if without_ext == "":
+            without_ext = "0"
+        try:
+            number = int(without_ext)
+            found_integers.append(number)
+            found_integers_files[number] = file
+        except ValueError as e:
+            raise ValueError(
+                f"""File {file} was not an integer.
+Please put the files in order with names that contain only integers.
+"""
+            ) from e
+
+    if len(found_integers) < 2:
+        raise ValueError("At least two valid files are needed.")
+
+    found_integers.sort()
+
+    lowest = found_integers[0]
+    highest = found_integers[-1]
+
+    missing = []
+
+    for i in range(lowest, highest + 1):
+        if i not in found_integers:
+            missing.append(i)
+
+    if len(missing) > 0:
+        raise ValueError(
+            f"""
+Missing one or more files:
+                         
+The lowest image index in your folder is {lowest}.
+The highest image index in your folder is {highest}.
+
+You are missing the following files:
+
+{", ".join(map(str, missing))}
+"""
+        )
+
+    print(f"Found files for image index range {lowest} to {highest} (inclusive):")
+    found_files = [found_integers_files[i] for i in found_integers]
+    for file in found_files:
+        print(file)
+
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
     warped_images = []
     locations = []
 
-    for boundary, image in zip(boundary_sequence, images):
+    boundary_sequence, H_seq = perform_analysis_pass(input_folder, found_files)
+
+    for boundary, found_file in zip(boundary_sequence, found_files):
+        image = RGBAImage.from_file(os.path.join(input_folder, found_file))
         src = np.array(init_image.corners()).astype(np.float32)
-        dst = boundary.astype(np.float32)
+        dst = boundary.copy()
+        dst = (dst - top_left_from_points(boundary)).astype(np.float32)
         warp_H = cv2.getPerspectiveTransform(src, dst)
         warped_image = warp_without_cropping(image.pixels, warp_H)
         warped_images.append(warped_image)
-        locations.append(np.array(boundary[0], float).round().astype(int))
+        locations.append(top_left_from_points(boundary).round().astype(int))
 
     create_image_arrangement(warped_images, locations, output_file)
