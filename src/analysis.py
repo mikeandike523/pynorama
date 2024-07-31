@@ -260,9 +260,6 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    warped_images = []
-    locations = []
-
     boundaries_forward_pass, confidences_forward_pass = perform_analysis_pass(
         input_folder, found_files
     )
@@ -274,12 +271,12 @@ You are missing the following files:
 
     print(
         colored(
-            f"forward confidences: {' '.join(map(str,confidences_forward_pass))}", "red"
+            f"forward confidences: {' '.join(map(lambda x: f"{x:.3f}",confidences_forward_pass))}", "red"
         )
     )
     print(
         colored(
-            f"reverse confidences: {' '.join(map(str,confidences_reverse_pass))}",
+            f"reverse confidences: {' '.join(map(lambda x: f"{x:.3f}",confidences_reverse_pass))}",
             "green",
         )
     )
@@ -300,48 +297,33 @@ You are missing the following files:
         for boundary, anchor in zip(boundaries_reverse_pass, anchors_reverse_pass)
     ]
 
-    anchors = [
-        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            anchors_forward_pass,
-            anchors_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+    oext = os.path.splitext(output_file)[1]
 
-    deltas = [
-        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            deltas_forward_pass,
-            deltas_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+    odn = os.path.dirname(output_file)
 
-    # anchors = (
-    #     anchors_forward_pass
-    #     if np.mean(confidences_forward_pass) >= np.mean(confidences_reverse_pass)
-    #     else anchors_reverse_pass
-    # )
-    # deltas = (
-    #     deltas_forward_pass
-    #     if np.mean(confidences_forward_pass) >= np.mean(confidences_reverse_pass)
-    #     else deltas_reverse_pass
-    # )
+    obasename = os.path.splitext(os.path.basename(output_file))[0]
+    oname_fwd = obasename + "-forward" + oext
+    oname_rev = obasename + "-reverse" + oext
 
-    for anchor, delta, found_file in zip(anchors, deltas, found_files):
-        tlc = anchor + delta[0]
+    def output_image(anchors, deltas, oname):
 
-        src = np.array(init_image.corners(), float).astype(np.float32)
-        dst = (delta - tlc).astype(np.float32)
+        warped_images = []
+        locations = []
 
-        H = cv2.getPerspectiveTransform(src, dst)
+        for anchor, delta, found_file in zip(anchors, deltas, found_files):
+            tlc = anchor + delta[0]
 
-        image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-        warped_image = warp_without_cropping(image.pixels, H)
-        warped_images.append(warped_image)
-        locations.append(tlc)
+            src = np.array(init_image.corners(), float).astype(np.float32)
+            dst = (delta - tlc).astype(np.float32)
 
-    create_image_arrangement(warped_images, locations, output_file)
+            H = cv2.getPerspectiveTransform(src, dst)
+
+            image = RGBAImage.from_file(os.path.join(input_folder, found_file))
+            warped_image = warp_without_cropping(image.pixels, H)
+            warped_images.append(warped_image)
+            locations.append(tlc)
+
+        create_image_arrangement(warped_images, locations, os.path.join(odn, oname))
+
+    output_image(anchors_forward_pass, deltas_forward_pass, oname_fwd)
+    output_image(anchors_reverse_pass, deltas_reverse_pass, oname_rev)
