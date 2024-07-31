@@ -2,6 +2,7 @@ import os
 
 import cv2
 import numpy as np
+from termcolor import colored
 
 from lib.image_processing import (
     RGBAImage,
@@ -13,6 +14,53 @@ from lib.image_processing import (
 from lib import make_fresh_folder
 from lib.image_processing.debugging import boundary_svg
 from lib.image_processing import create_image_arrangement
+
+
+def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
+    if len(arrays) != len(weights):
+        raise ValueError("Number of arrays and weights must match.")
+    if len(arrays) == 0:
+        raise ValueError("No arrays provided.")
+    if len(arrays) == 1:
+        raise ValueError(
+            "Only one array provided. Behavior in this case is not clearly defined."
+        )
+    if np.any(~np.isfinite(weights)) or np.any(np.array(weights) < 0):
+        raise ValueError("Weights must be finite and non-negative.")
+    if np.sum(weights) == 0:
+        raise ValueError("At least one non-zero weight required.")
+    if np.abs(np.sum(weights)) < epsilon:
+        raise ValueError("Weights sum is very close to zero.")
+    ndim = arrays[0].ndim
+    if any([array.ndim != ndim for array in arrays]):
+        raise ValueError("All arrays must have the same number of dimensions.")
+    shape = arrays[0].shape
+    if any([array.shape != shape for array in arrays]):
+        raise ValueError("All arrays must have the same shape.")
+    total = weights[0] * arrays[0].copy()
+    for array, weight in zip(arrays[1:], weights[1:]):
+        total += weight * array
+    total /= np.sum(weights)
+    return total
+
+
+def selection_of_numpy_arrays(arrays, weights):
+    if len(arrays) != len(weights):
+        raise ValueError("Number of arrays and weights must match.")
+    if len(arrays) == 0:
+        raise ValueError("No arrays provided.")
+    if len(arrays) == 1:
+        return arrays[0]
+    if np.any(~np.isfinite(weights)) or np.any(np.array(weights) < 0):
+        raise ValueError("Weights must be finite and non-negative.")
+    ndim = arrays[0].ndim
+    if any([array.ndim != ndim for array in arrays]):
+        raise ValueError("All arrays must have the same number of dimensions.")
+    shape = arrays[0].shape
+    if any([array.shape != shape for array in arrays]):
+        raise ValueError("All arrays must have the same shape.")
+    index_of_max_weight = np.argmax(weights)
+    return arrays[index_of_max_weight]
 
 
 def top_left_from_points(pts):
@@ -58,22 +106,29 @@ def extent_corners_from_points(pts):
     )
 
 
+def center_from_points(pts):
+    pts = np.array(pts, float)
+    return np.mean(pts, axis=0)
+
+
 def perform_analysis_pass(input_folder, found_files):
     print("Testing pair stitchability...")
 
-    H_seq = []
+    Hs = []
+    confidences = []
 
     for file1, file2 in zip(found_files[:-1], found_files[1:]):
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2)).pixels
 
-        if len(H_seq) > 0:
-            last_H = H_seq[-1]
+        if len(Hs) > 0:
+            last_H = Hs[-1]
             pixels1 = warp_without_cropping(pixels1, np.linalg.inv(last_H))
 
-        H = stitch_two(pixels1, pixels2)
+        H, confidence = stitch_two(pixels1, pixels2)
 
-        H_seq.append(H)
+        Hs.append(H)
+        confidences.append(confidence)
 
         print(H)
 
@@ -93,7 +148,7 @@ def perform_analysis_pass(input_folder, found_files):
     corner_seq_C = [init_C]
     corner_seq_D = [init_D]
 
-    for H in H_seq:
+    for H in Hs:
 
         last_corner_A = corner_seq_A[-1]
         last_corner_B = corner_seq_B[-1]
@@ -119,32 +174,21 @@ def perform_analysis_pass(input_folder, found_files):
         corner_seq_C.append(next_corner_C)
         corner_seq_D.append(next_corner_D)
 
-    print(corner_seq_A)
-    print(corner_seq_B)
-    print(corner_seq_C)
-    print(corner_seq_D)
-
-    boundary_sequence = [
+    boundaries = [
         np.array(corners, dtype=float)
         for corners in zip(corner_seq_A, corner_seq_B, corner_seq_C, corner_seq_D)
     ]
 
-    min_x = np.inf
-    min_y = np.inf
+    all_boundary_points = []
 
-    for boundary in boundary_sequence:
-        min_x = min(min_x, np.min(boundary[:, 0]))
-        min_y = min(min_y, np.min(boundary[:, 1]))
+    for boundary in boundaries:
+        all_boundary_points.extend(list(boundary))
 
-    print("Image boundary at the top left corner:", (min_x, min_y))
+    tlc = top_left_from_points(all_boundary_points)
 
-    boundary_sequence = [
-        boundary
-        - np.array([(min_x, min_y) for _ in range(boundary.shape[0])], dtype=float)
-        for boundary in boundary_sequence
-    ]
+    boundaries = [boundaries - tlc for boundaries in boundaries]
 
-    return boundary_sequence, H_seq
+    return boundaries, [1.0] + confidences
 
 
 def perform_analysis(input_folder, output_file):
@@ -219,16 +263,85 @@ You are missing the following files:
     warped_images = []
     locations = []
 
-    boundary_sequence, H_seq = perform_analysis_pass(input_folder, found_files)
+    boundaries_forward_pass, confidences_forward_pass = perform_analysis_pass(
+        input_folder, found_files
+    )
+    boundaries_reverse_pass, confidences_reverse_pass = perform_analysis_pass(
+        input_folder, list(reversed(found_files))
+    )
+    boundaries_reverse_pass = list(reversed(boundaries_reverse_pass))
+    confidences_reverse_pass = list(reversed(confidences_reverse_pass))
 
-    for boundary, found_file in zip(boundary_sequence, found_files):
+    print(
+        colored(
+            f"forward confidences: {' '.join(map(str,confidences_forward_pass))}", "red"
+        )
+    )
+    print(
+        colored(
+            f"reverse confidences: {' '.join(map(str,confidences_reverse_pass))}",
+            "green",
+        )
+    )
+
+    anchors_forward_pass = [
+        np.mean(boundary, axis=0) for boundary in boundaries_forward_pass
+    ]
+    anchors_reverse_pass = [
+        np.mean(boundary, axis=0) for boundary in boundaries_reverse_pass
+    ]
+
+    deltas_forward_pass = [
+        boundary - anchor
+        for boundary, anchor in zip(boundaries_forward_pass, anchors_forward_pass)
+    ]
+    deltas_reverse_pass = [
+        boundary - anchor
+        for boundary, anchor in zip(boundaries_reverse_pass, anchors_reverse_pass)
+    ]
+
+    anchors = [
+        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            anchors_forward_pass,
+            anchors_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
+        )
+    ]
+
+    deltas = [
+        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
+        for a, b, ca, cb in zip(
+            deltas_forward_pass,
+            deltas_reverse_pass,
+            confidences_forward_pass,
+            confidences_reverse_pass,
+        )
+    ]
+
+    # anchors = (
+    #     anchors_forward_pass
+    #     if np.mean(confidences_forward_pass) >= np.mean(confidences_reverse_pass)
+    #     else anchors_reverse_pass
+    # )
+    # deltas = (
+    #     deltas_forward_pass
+    #     if np.mean(confidences_forward_pass) >= np.mean(confidences_reverse_pass)
+    #     else deltas_reverse_pass
+    # )
+
+    for anchor, delta, found_file in zip(anchors, deltas, found_files):
+        tlc = anchor + delta[0]
+
+        src = np.array(init_image.corners(), float).astype(np.float32)
+        dst = (delta - tlc).astype(np.float32)
+
+        H = cv2.getPerspectiveTransform(src, dst)
+
         image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-        src = np.array(init_image.corners()).astype(np.float32)
-        dst = boundary.copy()
-        dst = (dst - top_left_from_points(boundary)).astype(np.float32)
-        warp_H = cv2.getPerspectiveTransform(src, dst)
-        warped_image = warp_without_cropping(image.pixels, warp_H)
+        warped_image = warp_without_cropping(image.pixels, H)
         warped_images.append(warped_image)
-        locations.append(top_left_from_points(boundary).round().astype(int))
+        locations.append(tlc)
 
     create_image_arrangement(warped_images, locations, output_file)

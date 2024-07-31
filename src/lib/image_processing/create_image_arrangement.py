@@ -18,6 +18,15 @@ def save_image(image: np.ndarray, directory: str, filename: str) -> str:
 def create_image_arrangement(
     images: List[np.ndarray], locations: List[np.ndarray], output_file: str
 ) -> str:
+    
+    locations = np.array(locations,float).round().astype(int)
+
+    tlc = np.min(locations,axis=0)
+
+    locations = locations - tlc
+
+
+
     # Ensure the output directory exists, recreate if necessary
     if os.path.exists(output_file):
         os.remove(output_file)

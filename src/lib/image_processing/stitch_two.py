@@ -4,57 +4,73 @@ import numpy as np
 NUM_GOOD_MATCHES = 4
 GOOD_MATCH_CUTOFF = 0.7
 
-
-def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> np.ndarray:
     """
     Returns the H matrix for the perspective based stitching
-    of image B (sample) onto image A (reference),
+    of image B (sample) onto image A (reference).
 
-    i.e. returns the matrix that transforms B to its closest matching overlap in image A
-
-    uses the SIFT and other algorithms from opencv-contrib-python
-
-    For simplicity, we use images A and B positioned at 0,0 (thus only need to use raw np.ndarray)
+    Arguments:
+    A : ndarray - The reference image
+    B : ndarray - The image to be transformed
+    exclude_fully_transparent : boolean - Whether to exclude matches in fully transparent regions
     """
+
+    # Create masks for fully transparent regions
+    A_transparent_mask = A[:, :, 3] == 0 if A.shape[2] == 4 else None
+    B_transparent_mask = B[:, :, 3] == 0 if B.shape[2] == 4 else None
+
     # Initialize SIFT detector
     sift = cv2.SIFT_create()
 
     # Find keypoints and descriptors with SIFT
-    keypoints_A, descriptors_A = sift.detectAndCompute(A, None)
-    keypoints_B, descriptors_B = sift.detectAndCompute(B, None)
+    keypoints_A, descriptors_A = sift.detectAndCompute(cv2.cvtColor(A, cv2.COLOR_BGRA2BGR), None)
+    keypoints_B, descriptors_B = sift.detectAndCompute(cv2.cvtColor(B, cv2.COLOR_BGRA2BGR), None)
+
+    if exclude_fully_transparent:
+        # Filter out keypoints in transparent regions
+        keypoints_A, descriptors_A = filter_keypoints(keypoints_A, descriptors_A, A_transparent_mask)
+        keypoints_B, descriptors_B = filter_keypoints(keypoints_B, descriptors_B, B_transparent_mask)
 
     # FLANN parameters
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    search_params = dict(checks=50)  # or pass empty dictionary
+    search_params = dict(checks=50)
 
     # Initialize FLANN matcher
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(descriptors_B, descriptors_A, k=2)
 
-    # Store all the good matches as per Lowe's ratio test.
-    good_matches = []
-    for m, n in matches:
-        if m.distance < GOOD_MATCH_CUTOFF * n.distance:
-            good_matches.append(m)
+    # Store all the good matches as per Lowe's ratio test
+    good_matches = [m for m, n in matches if m.distance < GOOD_MATCH_CUTOFF * n.distance]
 
-    # Need at least 4 good matches to find the homography
     if len(good_matches) < NUM_GOOD_MATCHES:
-        raise ValueError(
-            "Not enough matches are found - {}/{}".format(
-                len(good_matches), NUM_GOOD_MATCHES
-            )
-        )
+        raise ValueError(f"Not enough matches found - {len(good_matches)}/{NUM_GOOD_MATCHES}")
 
     # Extract location of good matches
-    points_A = np.float32([keypoints_A[m.trainIdx].pt for m in good_matches]).reshape(
-        -1, 1, 2
-    )
-    points_B = np.float32([keypoints_B[m.queryIdx].pt for m in good_matches]).reshape(
-        -1, 1, 2
-    )
+    points_A = np.float32([keypoints_A[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    points_B = np.float32([keypoints_B[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
     # Find the homography matrix
-    H, mask = cv2.findHomography(points_B, points_A, cv2.RANSAC, 5.0)
+    H, _ = cv2.findHomography(points_B, points_A, cv2.RANSAC, 5.0)
 
-    return H
+    return H, len(good_matches)/len(matches)
+
+def filter_keypoints(keypoints, descriptors, mask):
+    """
+    Filter out keypoints that lie in the masked (transparent) regions.
+    """
+    if mask is None:
+        return keypoints, descriptors
+    
+    valid_keypoints = []
+    valid_descriptors = []
+
+    for keypoint, descriptor in zip(keypoints, descriptors):
+        x, y = map(int, keypoint.pt)
+        if not mask[y, x]:  # If the pixel is not transparent
+            valid_keypoints.append(keypoint)
+            valid_descriptors.append(descriptor)
+        else:
+            print(f"Skipping keypoint at ({x}, {y}) due to transparent region")
+
+    return valid_keypoints, np.array(valid_descriptors)
