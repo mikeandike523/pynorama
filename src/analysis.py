@@ -1,4 +1,5 @@
 import os
+from functools import reduce
 
 import cv2
 import numpy as np
@@ -147,6 +148,20 @@ def perform_analysis_pass(input_folder, found_files):
     return boundary_sequence, H_seq
 
 
+def chain_transformation_sequence(transformations):
+    """
+    Does a chain of left-multiples so the first item in the sequence is applied first
+    """
+    if len(transformations) == 0:
+        return np.eye(3, 3)
+    if len(transformations) == 1:
+        return transformations[0]
+    value = transformations[0]
+    for transformation in transformations[1:]:
+        value = np.dot(transformation, value)
+    return value
+
+
 def perform_analysis(input_folder, output_file):
 
     if os.path.exists(output_file):
@@ -214,21 +229,48 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
-
     warped_images = []
     locations = []
 
-    boundary_sequence, H_seq = perform_analysis_pass(input_folder, found_files)
+    # boundary_sequence, H_seq = perform_analysis_pass(input_folder, found_files)
 
-    for boundary, found_file in zip(boundary_sequence, found_files):
+    # for boundary, found_file in zip(boundary_sequence, found_files):
+    #     image = RGBAImage.from_file(os.path.join(input_folder, found_file))
+    #     src = np.array(init_image.corners()).astype(np.float32)
+    #     dst = boundary.copy()
+    #     dst = (dst - top_left_from_points(boundary)).astype(np.float32)
+    #     warp_H = cv2.getPerspectiveTransform(src, dst)
+    #     warped_image = warp_without_cropping(image.pixels, warp_H)
+    #     warped_images.append(warped_image)
+    #     locations.append(top_left_from_points(boundary).round().astype(int))
+
+    H_seq = [np.eye(3, 3).astype(float)]
+
+    for i in range(len(found_files) - 1):
+        ia = i
+        ib = i + 1
+        image_a_path = os.path.join(input_folder, found_files[ia])
+        image_b_path = os.path.join(input_folder, found_files[ib])
+        image_a = RGBAImage.from_file(image_a_path)
+        image_b = RGBAImage.from_file(image_b_path)
+        transformation = stitch_two(image_a.pixels, image_b.pixels)
+        print(i, len(found_files), transformation)
+        last_H = H_seq[-1]
+        H_seq.append(np.dot(transformation, last_H))
+
+    print([item.shape for item in H_seq])
+
+    for found_file, H in zip(found_files, H_seq):
         image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-        src = np.array(init_image.corners()).astype(np.float32)
-        dst = boundary.copy()
-        dst = (dst - top_left_from_points(boundary)).astype(np.float32)
-        warp_H = cv2.getPerspectiveTransform(src, dst)
-        warped_image = warp_without_cropping(image.pixels, warp_H)
+        warped_image = warp_without_cropping(image.pixels, H)
+        print(found_file, warped_image.shape)
         warped_images.append(warped_image)
-        locations.append(top_left_from_points(boundary).round().astype(int))
+        location = apply_h_matrix_to_point(image.corners()[0].copy(), H)
+        print(found_file, location)
+        locations.append(location)
+
+    tlc = top_left_from_points(np.array(locations, float))
+
+    locations = [location - tlc for location in locations]
 
     create_image_arrangement(warped_images, locations, output_file)
