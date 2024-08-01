@@ -260,113 +260,35 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    boundaries_forward_pass, confidences_forward_pass = perform_analysis_pass(
+    boundaries, confidences= perform_analysis_pass(
         input_folder, found_files
     )
-    boundaries_reverse_pass, confidences_reverse_pass = perform_analysis_pass(
-        input_folder, list(reversed(found_files))
-    )
-    boundaries_reverse_pass = list(reversed(boundaries_reverse_pass))
-    confidences_reverse_pass = list(reversed(confidences_reverse_pass))
 
-    anchors_forward_pass = [
-        np.mean(boundary, axis=0) for boundary in boundaries_forward_pass
-    ]
-    anchors_reverse_pass = [
-        np.mean(boundary, axis=0) for boundary in boundaries_reverse_pass
+    anchors = [
+        np.mean(boundary, axis=0) for boundary in boundaries
     ]
 
-    deltas_forward_pass = [
+    deltas= [
         boundary - anchor
-        for boundary, anchor in zip(boundaries_forward_pass, anchors_forward_pass)
-    ]
-    deltas_reverse_pass = [
-        boundary - anchor
-        for boundary, anchor in zip(boundaries_reverse_pass, anchors_reverse_pass)
+        for boundary, anchor in zip(boundaries, anchors)
     ]
 
-    anchors_weighted = [
-        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            anchors_forward_pass,
-            anchors_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+    warped_images = []
+    locations = []
 
-    deltas_weighted = [
-        weighted_mean_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            deltas_forward_pass,
-            deltas_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+    for anchor, delta, found_file in zip(
+        anchors, deltas, found_files
+    ):
+        tlc = anchor + delta[0]
 
-    anchors_selected = [
-        selection_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            anchors_forward_pass,
-            anchors_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+        src = np.array(init_image.corners(), float).astype(np.float32)
+        dst = (delta - tlc).astype(np.float32)
 
-    deltas_selected = [
-        selection_of_numpy_arrays([a, b], [ca, cb])
-        for a, b, ca, cb in zip(
-            deltas_forward_pass,
-            deltas_reverse_pass,
-            confidences_forward_pass,
-            confidences_reverse_pass,
-        )
-    ]
+        H = cv2.getPerspectiveTransform(src, dst)
 
-    oext = os.path.splitext(output_file)[1]
+        image = RGBAImage.from_file(os.path.join(input_folder, found_file))
+        warped_image = warp_without_cropping(image.pixels, H)
+        warped_images.append(warped_image)
+        locations.append(tlc)
 
-    odn = os.path.dirname(output_file)
-
-    obasename = os.path.splitext(os.path.basename(output_file))[0]
-    oname_fwd = obasename + "-forward" + oext
-    oname_rev = obasename + "-reverse" + oext
-    oname_weighted = obasename + "-weighted" + oext
-    oname_selected = obasename + "-selected" + oext
-
-    def output_image(anchors, deltas, oname):
-
-        warped_images = []
-        locations = []
-
-        for anchor, delta, found_file in zip(anchors, deltas, found_files):
-            tlc = anchor + delta[0]
-
-            src = np.array(init_image.corners(), float).astype(np.float32)
-            dst = (delta - tlc).astype(np.float32)
-
-            H = cv2.getPerspectiveTransform(src, dst)
-
-            image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-            warped_image = warp_without_cropping(image.pixels, H)
-            warped_images.append(warped_image)
-            locations.append(tlc)
-
-        create_image_arrangement(warped_images, locations, os.path.join(odn, oname))
-
-    confidences_report = "Forward" + "    " + "Reverse\n"
-    for ca, cb in zip(confidences_forward_pass, confidences_reverse_pass):
-        ca_str = f"{ca:.3f}"
-        cb_str = f"{cb:.3f}"
-        pad1 = " " * (len("Forward") - len(ca_str))
-        pad2 = " " * (len("Reverse") - len(cb_str))
-        confidences_report += f"{ca_str}{pad1}    {cb_str}{pad2}\n"
-
-    with open(os.path.join(odn, f"{obasename}-confidences.txt"), "w") as f:
-        f.write(confidences_report)
-
-    output_image(anchors_forward_pass, deltas_forward_pass, oname_fwd)
-    output_image(anchors_reverse_pass, deltas_reverse_pass, oname_rev)
-    output_image(anchors_weighted, deltas_weighted, oname_weighted)
-    output_image(anchors_selected, deltas_selected, oname_selected)
+    create_image_arrangement(warped_images, locations, output_file)

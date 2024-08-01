@@ -3,6 +3,9 @@ import numpy as np
 
 NUM_GOOD_MATCHES = 4
 GOOD_MATCH_CUTOFF = 0.7
+NUM_TREES=5
+NUM_CHECKS=50
+RANSAC_REPROJECTION_THRESHOLD=5.0
 
 def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> np.ndarray:
     """
@@ -33,8 +36,8 @@ def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> 
 
     # FLANN parameters
     FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    search_params = dict(checks=50)
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=NUM_TREES)
+    search_params = dict(checks=NUM_CHECKS)
 
     # Initialize FLANN matcher
     flann = cv2.FlannBasedMatcher(index_params, search_params)
@@ -51,7 +54,7 @@ def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> 
     points_B = np.float32([keypoints_B[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
     # Find the homography matrix
-    H, _ = cv2.findHomography(points_B, points_A, cv2.RANSAC, 5.0)
+    H, _ = cv2.findHomography(points_B, points_A, cv2.RANSAC, RANSAC_REPROJECTION_THRESHOLD)
 
     return H, len(good_matches)/len(matches)
 
