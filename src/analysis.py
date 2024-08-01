@@ -5,8 +5,8 @@ import numpy as np
 from termcolor import colored
 
 from lib.image_processing import (
+    PixelDownsampler,
     RGBAImage,
-    RGBADownsampler,
     stitch_two,
     apply_h_matrix_to_point,
     warp_without_cropping,

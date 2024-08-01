@@ -1,5 +1,5 @@
 # Auto-generated __init__.py
-from .RGBADownsampler import *
+from .PixelDownsampler import *
 from .RGBAImage import *
 from .RGBAInfiniteCanvas import *
 from .apply_h_matrix_to_point import *
