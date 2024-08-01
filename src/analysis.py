@@ -115,7 +115,7 @@ def center_from_points(pts):
     return np.mean(pts, axis=0)
 
 
-def perform_analysis_pass(input_folder, found_files):
+def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
     print("Testing pair stitchability...")
 
     Hs = []
@@ -127,7 +127,7 @@ def perform_analysis_pass(input_folder, found_files):
     init_H = init_image.get_height()
 
     downsampler = PixelDownsampler(
-        init_W, init_H, 1.0, SupportedResamplingAlgorithm.CUBIC
+        init_W, init_H, downsample_factor, SupportedResamplingAlgorithm.CUBIC
     )
 
     for file1, file2 in zip(found_files[:-1], found_files[1:]):
@@ -207,7 +207,7 @@ def perform_analysis_pass(input_folder, found_files):
 
     boundaries = [boundaries - tlc for boundaries in boundaries]
 
-    boundaries = [1.0 * boundaries for boundaries in boundaries]
+    boundaries = [downsample_factor * boundaries for boundaries in boundaries]
 
     return boundaries, [1.0] + confidences
 
