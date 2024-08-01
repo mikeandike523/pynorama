@@ -13,7 +13,11 @@ from lib.image_processing import (
 )
 from lib import make_fresh_folder
 from lib.image_processing.debugging import boundary_svg
-from lib.image_processing import create_image_arrangement
+from lib.image_processing import (
+    create_image_arrangement,
+    PixelDownsampler,
+    SupportedResamplingAlgorithm,
+)
 
 
 def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
@@ -117,9 +121,20 @@ def perform_analysis_pass(input_folder, found_files):
     Hs = []
     confidences = []
 
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
+
+    init_W = init_image.get_width()
+    init_H = init_image.get_height()
+
+    downsampler = PixelDownsampler(
+        init_W, init_H, 1.0, SupportedResamplingAlgorithm.CUBIC
+    )
+
     for file1, file2 in zip(found_files[:-1], found_files[1:]):
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2)).pixels
+        pixels1 = downsampler.downsample(pixels1)
+        pixels2 = downsampler.downsample(pixels2)
 
         if len(Hs) > 0:
             last_H = Hs[-1]
@@ -141,7 +156,11 @@ def perform_analysis_pass(input_folder, found_files):
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    init_A, init_B, init_C, init_D = init_image.corners()
+    init_image_downsampled = RGBAImage.from_pixels(
+        downsampler.downsample(init_image.pixels)
+    )
+
+    init_A, init_B, init_C, init_D = init_image_downsampled.corners()
 
     corner_seq_A = [init_A]
     corner_seq_B = [init_B]
@@ -187,6 +206,8 @@ def perform_analysis_pass(input_folder, found_files):
     tlc = top_left_from_points(all_boundary_points)
 
     boundaries = [boundaries - tlc for boundaries in boundaries]
+
+    boundaries = [1.0 * boundaries for boundaries in boundaries]
 
     return boundaries, [1.0] + confidences
 
@@ -260,25 +281,16 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    boundaries, confidences= perform_analysis_pass(
-        input_folder, found_files
-    )
+    boundaries, confidences = perform_analysis_pass(input_folder, found_files)
 
-    anchors = [
-        np.mean(boundary, axis=0) for boundary in boundaries
-    ]
+    anchors = [np.mean(boundary, axis=0) for boundary in boundaries]
 
-    deltas= [
-        boundary - anchor
-        for boundary, anchor in zip(boundaries, anchors)
-    ]
+    deltas = [boundary - anchor for boundary, anchor in zip(boundaries, anchors)]
 
     warped_images = []
     locations = []
 
-    for anchor, delta, found_file in zip(
-        anchors, deltas, found_files
-    ):
+    for anchor, delta, found_file in zip(anchors, deltas, found_files):
         tlc = anchor + delta[0]
 
         src = np.array(init_image.corners(), float).astype(np.float32)
