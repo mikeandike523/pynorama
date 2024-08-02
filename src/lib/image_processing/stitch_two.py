@@ -2,10 +2,10 @@ import cv2
 import numpy as np
 
 NUM_GOOD_MATCHES = 32
-GOOD_MATCH_CUTOFF = 0.25
-NUM_TREES=4
+GOOD_MATCH_CUTOFF = 0.3
+NUM_TREES=8
 NUM_CHECKS=256
-RANSAC_REPROJECTION_THRESHOLD=5.0
+RANSAC_REPROJECTION_THRESHOLD=3.0
 
 def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> np.ndarray:
     """
@@ -56,7 +56,7 @@ def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> 
     # Find the homography matrix
     H, _ = cv2.findHomography(points_B, points_A, cv2.RANSAC, RANSAC_REPROJECTION_THRESHOLD)
 
-    return H, len(good_matches)/len(matches)
+    return H
 
 def filter_keypoints(keypoints, descriptors, mask):
     """

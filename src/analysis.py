@@ -119,7 +119,6 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
     print("Testing pair stitchability...")
 
     Hs = []
-    confidences = []
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
@@ -140,14 +139,13 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
         #     last_H = Hs[-1]
         #     pixels1 = warp_without_cropping(pixels1, np.linalg.inv(last_H))
 
-        H, confidence = stitch_two(pixels1, pixels2)
+        H = stitch_two(pixels1, pixels2)
 
         # last_H = Hs[-1] if Hs else np.eye(3)
 
         # H = np.dot(last_H,H)
 
         Hs.append(H)
-        confidences.append(confidence)
 
         print(H)
 
@@ -213,7 +211,7 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
 
     boundaries = [downsample_factor * boundaries for boundaries in boundaries]
 
-    return boundaries, [1.0] + confidences
+    return boundaries
 
 
 def perform_analysis(input_folder, output_file):
@@ -285,7 +283,7 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    boundaries, confidences = perform_analysis_pass(input_folder, found_files)
+    boundaries= perform_analysis_pass(input_folder, found_files)
 
     anchors = [np.mean(boundary, axis=0) for boundary in boundaries]
 
