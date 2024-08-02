@@ -115,7 +115,7 @@ def center_from_points(pts):
     return np.mean(pts, axis=0)
 
 
-def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
+def perform_analysis_pass(input_folder, found_files, downsample_factor=2.0):
     print("Testing pair stitchability...")
 
     Hs = []
