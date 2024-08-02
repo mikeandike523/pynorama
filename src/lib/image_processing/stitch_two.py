@@ -5,7 +5,7 @@ NUM_GOOD_MATCHES = 32
 GOOD_MATCH_CUTOFF = 0.25
 NUM_TREES=4
 NUM_CHECKS=256
-RANSAC_REPROJECTION_THRESHOLD=2.5
+RANSAC_REPROJECTION_THRESHOLD=5.0
 
 def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> np.ndarray:
     """

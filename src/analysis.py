@@ -115,7 +115,7 @@ def center_from_points(pts):
     return np.mean(pts, axis=0)
 
 
-def perform_analysis_pass(input_folder, found_files, downsample_factor=2.0):
+def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
     print("Testing pair stitchability...")
 
     Hs = []
@@ -136,11 +136,15 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=2.0):
         pixels1 = downsampler.downsample(pixels1)
         pixels2 = downsampler.downsample(pixels2)
 
-        if len(Hs) > 0:
-            last_H = Hs[-1]
-            pixels1 = warp_without_cropping(pixels1, np.linalg.inv(last_H))
+        # if len(Hs) > 0:
+        #     last_H = Hs[-1]
+        #     pixels1 = warp_without_cropping(pixels1, np.linalg.inv(last_H))
 
         H, confidence = stitch_two(pixels1, pixels2)
+
+        # last_H = Hs[-1] if Hs else np.eye(3)
+
+        # H = np.dot(last_H,H)
 
         Hs.append(H)
         confidences.append(confidence)
