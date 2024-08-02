@@ -7,7 +7,7 @@ from termcolor import colored
 from lib.image_processing import (
     PixelDownsampler,
     RGBAImage,
-    stitch_two,
+    stitch_two_and_refine,
     apply_h_matrix_to_point,
     warp_without_cropping,
 )
@@ -135,15 +135,7 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
         pixels1 = downsampler.downsample(pixels1)
         pixels2 = downsampler.downsample(pixels2)
 
-        # if len(Hs) > 0:
-        #     last_H = Hs[-1]
-        #     pixels1 = warp_without_cropping(pixels1, np.linalg.inv(last_H))
-
-        H = stitch_two(pixels1, pixels2)
-
-        # last_H = Hs[-1] if Hs else np.eye(3)
-
-        # H = np.dot(last_H,H)
+        H = stitch_two_and_refine(pixels1, pixels2)
 
         Hs.append(H)
 
