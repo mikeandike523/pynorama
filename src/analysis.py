@@ -127,7 +127,7 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
     init_H = init_image.get_height()
 
     downsampler = PixelDownsampler(
-        init_W, init_H, downsample_factor, SupportedResamplingAlgorithm.CUBIC
+        init_W, init_H, downsample_factor, SupportedResamplingAlgorithm.LINEAR
     )
 
     for file1, file2 in zip(found_files[:-1], found_files[1:]):

@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
 
-NUM_GOOD_MATCHES = 4
-GOOD_MATCH_CUTOFF = 0.7
-NUM_TREES=5
-NUM_CHECKS=50
-RANSAC_REPROJECTION_THRESHOLD=5.0
+NUM_GOOD_MATCHES = 32
+GOOD_MATCH_CUTOFF = 0.25
+NUM_TREES=8
+NUM_CHECKS=256
+RANSAC_REPROJECTION_THRESHOLD=2.5
 
 def stitch_two(A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True) -> np.ndarray:
     """
