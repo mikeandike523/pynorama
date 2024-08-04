@@ -1,18 +1,41 @@
+from types import SimpleNamespace
+from typing import Protocol
 import cv2
 import numpy as np
 
 from .apply_h_matrix_to_point import apply_h_matrix_to_point
 from .RGBAImage import RGBAImage
 
-NUM_GOOD_MATCHES = 32
-GOOD_MATCH_CUTOFF = 0.3
-NUM_TREES = 8
-NUM_CHECKS = 256
-RANSAC_REPROJECTION_THRESHOLD = 3.0
+
+class StitchParams(Protocol):
+    NUM_GOOD_MATCHES: int
+    GOOD_MATCH_CUTOFF: float
+    NUM_TREES: int
+    NUM_CHECKS: int
+    RANSAC_REPROJECTION_THRESHOLD: float
+
+
+INIT_ESTIMATE_PARAMS = SimpleNamespace(
+    NUM_GOOD_MATCHES=64,
+    GOOD_MATCH_CUTOFF=0.30,
+    NUM_TREES=8,
+    NUM_CHECKS=512,
+    RANSAC_REPROJECTION_THRESHOLD=3.0,
+)
+REFINEMENT_PARAMS = SimpleNamespace(
+    NUM_GOOD_MATCHES=64,
+    GOOD_MATCH_CUTOFF=0.30,
+    NUM_TREES=8,
+    NUM_CHECKS=512,
+    RANSAC_REPROJECTION_THRESHOLD=3.0,
+)
 
 
 def stitch_two(
-    A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True
+    A: np.ndarray,
+    B: np.ndarray,
+    exclude_fully_transparent=True,
+    params: StitchParams = INIT_ESTIMATE_PARAMS,
 ) -> np.ndarray:
     """
     Returns the H matrix for the perspective based stitching
@@ -50,8 +73,8 @@ def stitch_two(
 
     # FLANN parameters
     FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=NUM_TREES)
-    search_params = dict(checks=NUM_CHECKS)
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=params.NUM_TREES)
+    search_params = dict(checks=params.NUM_CHECKS)
 
     # Initialize FLANN matcher
     flann = cv2.FlannBasedMatcher(index_params, search_params)
@@ -59,12 +82,12 @@ def stitch_two(
 
     # Store all the good matches as per Lowe's ratio test
     good_matches = [
-        m for m, n in matches if m.distance < GOOD_MATCH_CUTOFF * n.distance
+        m for m, n in matches if m.distance < params.GOOD_MATCH_CUTOFF * n.distance
     ]
 
-    if len(good_matches) < NUM_GOOD_MATCHES:
+    if len(good_matches) < params.NUM_GOOD_MATCHES:
         raise ValueError(
-            f"Not enough matches found - {len(good_matches)}/{NUM_GOOD_MATCHES}"
+            f"Not enough matches found - {len(good_matches)}/{params.NUM_GOOD_MATCHES}"
         )
 
     # Extract location of good matches
@@ -77,7 +100,7 @@ def stitch_two(
 
     # Find the homography matrix
     H, _ = cv2.findHomography(
-        points_B, points_A, cv2.RANSAC, RANSAC_REPROJECTION_THRESHOLD
+        points_B, points_A, cv2.RANSAC, params.RANSAC_REPROJECTION_THRESHOLD
     )
 
     return H
@@ -99,7 +122,8 @@ def filter_keypoints(keypoints, descriptors, mask):
             valid_keypoints.append(keypoint)
             valid_descriptors.append(descriptor)
         else:
-            print(f"Skipping keypoint at ({x}, {y}) due to transparent region")
+            # print(f"Skipping keypoint at ({x}, {y}) due to transparent region")
+            pass
 
     return valid_keypoints, np.array(valid_descriptors)
 
@@ -132,7 +156,6 @@ def raster_closed_shape_onto_rectangle_mask(
     return target.squeeze() > 0
 
 
-
 def stitch_two_and_refine(
     A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True
 ) -> np.ndarray:
@@ -146,10 +169,10 @@ def stitch_two_and_refine(
     The value of `exclude_fully_transparent` is applied only to the initial estimate
     The second call to stitch_two `exclude_fully_transparent` is always True
     """
-    init_H = stitch_two(A, B, exclude_fully_transparent)
+    init_H = stitch_two(A.copy(), B.copy(), exclude_fully_transparent)
     init_H_inv = np.linalg.inv(init_H)
-    image_A = RGBAImage.from_pixels(A)
-    image_B = RGBAImage.from_pixels(B)
+    image_A = RGBAImage.from_pixels(A.copy())
+    image_B = RGBAImage.from_pixels(B.copy())
     corners_A = image_A.corners()
     corners_B = image_B.corners()
     overlap_mask_A = np.zeros(image_A.pixels.shape[:2], dtype=np.bool)
@@ -168,5 +191,10 @@ def stitch_two_and_refine(
     )
     image_A.pixels[~overlap_mask_A, :] = 0
     image_B.pixels[~overlap_mask_B, :] = 0
-    refined_H = stitch_two(image_A.pixels, image_B.pixels, True)
-    return refined_H
+    try:
+        refined_H = stitch_two(image_A.pixels, image_B.pixels, True, REFINEMENT_PARAMS)
+        return refined_H
+    except ValueError as e:
+        print("Failed to refine the stitching estimate.")
+        print(e)
+        return init_H

@@ -1,8 +1,10 @@
 import os
+import shutil
 
 import cv2
 import numpy as np
 from termcolor import colored
+from PIL import Image
 
 from lib.image_processing import (
     PixelDownsampler,
@@ -17,7 +19,9 @@ from lib.image_processing import (
     create_image_arrangement,
     PixelDownsampler,
     SupportedResamplingAlgorithm,
+    RGBAInfiniteCanvas,
 )
+from lib.filesystem import get_random_unique_in_folder
 
 
 def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
@@ -115,7 +119,7 @@ def center_from_points(pts):
     return np.mean(pts, axis=0)
 
 
-def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
+def perform_analysis_pass(input_folder, found_files):
     print("Testing pair stitchability...")
 
     Hs = []
@@ -125,17 +129,37 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
     init_W = init_image.get_width()
     init_H = init_image.get_height()
 
-    downsampler = PixelDownsampler(
-        init_W, init_H, downsample_factor, SupportedResamplingAlgorithm.LINEAR
-    )
 
-    for file1, file2 in zip(found_files[:-1], found_files[1:]):
+    for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2)).pixels
-        pixels1 = downsampler.downsample(pixels1)
-        pixels2 = downsampler.downsample(pixels2)
+
+        dpx1 = pixels1.copy()
+        dpx2 = pixels2.copy()
+        dpx1[:, :, 3] = 128
 
         H = stitch_two_and_refine(pixels1, pixels2)
+
+        debug_folder = "testing/output/debugpairs"
+
+        debug_fn = os.path.join(
+            debug_folder, os.path.basename(input_folder) + "_" + f"pair{i}-{i+1}.png"
+        )
+
+        dcanvas = RGBAInfiniteCanvas()
+
+        debugx1 = 0
+        debugy1 = 0
+        debugx2, debugy2 = apply_h_matrix_to_point(
+            np.array([debugx1, debugy1], float), H
+        )
+        dp1 = np.array([debugx1, debugy1], int)
+        dp2 = np.array([debugx2, debugy2], int)
+        dcanvas.place_pixel_array(dpx1, dp1[0], dp1[1])
+
+        dcanvas.place_pixel_array(warp_without_cropping(dpx2, H), dp2[0], dp2[1])
+
+        Image.fromarray(dcanvas.canvas).save(debug_fn)
 
         Hs.append(H)
 
@@ -150,11 +174,8 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    init_image_downsampled = RGBAImage.from_pixels(
-        downsampler.downsample(init_image.pixels)
-    )
 
-    init_A, init_B, init_C, init_D = init_image_downsampled.corners()
+    init_A, init_B, init_C, init_D = init_image.corners()
 
     corner_seq_A = [init_A]
     corner_seq_B = [init_B]
@@ -201,8 +222,6 @@ def perform_analysis_pass(input_folder, found_files, downsample_factor=1.0):
 
     boundaries = [boundaries - tlc for boundaries in boundaries]
 
-    boundaries = [downsample_factor * boundaries for boundaries in boundaries]
-
     return boundaries
 
 
@@ -212,6 +231,10 @@ def perform_analysis(input_folder, output_file):
         if not os.path.isfile(output_file):
             raise ValueError(f"{output_file} already exists and is not a file.")
         os.remove(output_file)
+
+    if os.path.exists("testing/output/debugpairs"):
+        shutil.rmtree("testing/output/debugpairs")
+    os.makedirs("testing/output/debugpairs")
 
     permitted_extensions = [".tif", ".tiff", ".jpg", ".jpeg", ".png", ".gif", ".bmp"]
 
@@ -275,7 +298,7 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    boundaries= perform_analysis_pass(input_folder, found_files)
+    boundaries = perform_analysis_pass(input_folder, found_files)
 
     anchors = [np.mean(boundary, axis=0) for boundary in boundaries]
 
