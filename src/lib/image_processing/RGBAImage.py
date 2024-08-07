@@ -12,7 +12,7 @@ Image.MAX_IMAGE_PIXELS = None
 class RGBAImage:
 
     def __init__(self, pixels: np.ndarray):
-        self.pixels = pixels
+        self.pixels = pixels.copy()
 
     def get_width(self) -> int:
         """Returns the width of the image (number of columns in the array)."""
@@ -122,7 +122,9 @@ class RGBAImage:
         D = (0, self.get_height())
         return [np.array(P, dtype=float) for P in [A, B, C, D]]
 
-    def remove_background_otsu(self, blur_kernel_sigma1=1, blur_kernel_sigma2=2,morph_kernel_size=2):
+    def remove_background_otsu(
+        self, blur_kernel_sigma1=1, blur_kernel_sigma2=2, morph_kernel_size=2
+    ):
         """
         Returns a copy of this image with the background deleted
         (made black AND transparent, i.e. R=G=B=A=0)
@@ -143,7 +145,6 @@ class RGBAImage:
             dog_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
 
-
         kernel = np.ones((round(morph_kernel_size), round(morph_kernel_size)), np.uint8)
         binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
 
@@ -159,3 +160,15 @@ class RGBAImage:
 
         # Return the result as a new RGBAImage instance
         return RGBAImage(result_image)
+
+    def to_greyscale(self) -> "RGBAImage":
+        R, G, B, A = (self.pixels[:, :, i] for i in range(4))
+        combined = 1 / 3 * (R.astype(float) + G.astype(float) + B.astype(float))
+        grey = combined.astype(np.uint8)
+        return RGBAImage(np.dstack((grey, grey, grey, A)).astype(np.uint8))
+    
+    def gaussian_blurred(self, sigma: float) -> "RGBAImage":
+        if sigma == 0:
+            return RGBAImage(self.pixels)
+        blurred_image = gaussian_filter(self.pixels, sigma=sigma)
+        return RGBAImage(blurred_image)

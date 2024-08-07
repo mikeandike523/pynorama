@@ -1,13 +1,16 @@
+import copy
 from types import SimpleNamespace
 from typing import Protocol
 import cv2
 import numpy as np
+from termcolor import colored
 
 from .apply_h_matrix_to_point import apply_h_matrix_to_point
 from .RGBAImage import RGBAImage
 
 
 class StitchParams(Protocol):
+    BLUR_SIGMA: float
     NUM_GOOD_MATCHES: int
     GOOD_MATCH_CUTOFF: float
     NUM_TREES: int
@@ -15,20 +18,37 @@ class StitchParams(Protocol):
     RANSAC_REPROJECTION_THRESHOLD: float
 
 
-INIT_ESTIMATE_PARAMS = SimpleNamespace(
-    NUM_GOOD_MATCHES=64,
-    GOOD_MATCH_CUTOFF=0.30,
+INIT_ESTIMATE_PARAMS: StitchParams = SimpleNamespace(
+    BLUR_SIGMA=0.0,
+    NUM_GOOD_MATCHES=32,
+    GOOD_MATCH_CUTOFF=0.25,
     NUM_TREES=8,
-    NUM_CHECKS=512,
+    NUM_CHECKS=256,
     RANSAC_REPROJECTION_THRESHOLD=3.0,
 )
-REFINEMENT_PARAMS = SimpleNamespace(
-    NUM_GOOD_MATCHES=64,
-    GOOD_MATCH_CUTOFF=0.30,
+
+ITERATIVE_REFINEMENT_PARAMS: StitchParams = SimpleNamespace(
+    # increase precision much less matches needed
+    BLUR_SIGMA=2.0,
+    NUM_GOOD_MATCHES=16,
+    # the lower
+    GOOD_MATCH_CUTOFF=0.10,
     NUM_TREES=8,
-    NUM_CHECKS=512,
-    RANSAC_REPROJECTION_THRESHOLD=3.0,
+    NUM_CHECKS=256,
+    RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
+
+ITERATION_TEST_STEP = 0.05
+
+
+class InsufficientMatchesError(ValueError):
+
+    def __init__(self, expected, actual):
+        super().__init__(
+            f"Not enough (good) SIFT matches... Expected {expected} but got {actual}"
+        )
+        self.expected = expected
+        self.actual = actual
 
 
 def stitch_two(
@@ -46,6 +66,9 @@ def stitch_two(
     B : ndarray - The image to be transformed
     exclude_fully_transparent : boolean - Whether to exclude matches in fully transparent regions
     """
+
+    A = RGBAImage.from_pixels(A).to_greyscale().gaussian_blurred(params.BLUR_SIGMA).pixels
+    B = RGBAImage.from_pixels(B).to_greyscale().gaussian_blurred(params.BLUR_SIGMA).pixels
 
     # Create masks for fully transparent regions
     A_transparent_mask = A[:, :, 3] == 0 if A.shape[2] == 4 else None
@@ -86,9 +109,7 @@ def stitch_two(
     ]
 
     if len(good_matches) < params.NUM_GOOD_MATCHES:
-        raise ValueError(
-            f"Not enough matches found - {len(good_matches)}/{params.NUM_GOOD_MATCHES}"
-        )
+        raise InsufficientMatchesError(params.NUM_GOOD_MATCHES, len(good_matches))
 
     # Extract location of good matches
     points_A = np.float32([keypoints_A[m.trainIdx].pt for m in good_matches]).reshape(
@@ -163,11 +184,8 @@ def stitch_two_and_refine(
     Gets an initial estimate by calling stitch_two
     Then isolates the the overlapping region by changing non-overlapping pixels
     in both images to black+transparent (R=G=B=A=0)
-    Then calls stitch_two again with the modified images to further refine the estimate
 
-    Note:
-    The value of `exclude_fully_transparent` is applied only to the initial estimate
-    The second call to stitch_two `exclude_fully_transparent` is always True
+    Then performs an iterative refinement approach to get the best match possible
     """
     init_H = stitch_two(A.copy(), B.copy(), exclude_fully_transparent)
     init_H_inv = np.linalg.inv(init_H)
@@ -191,10 +209,26 @@ def stitch_two_and_refine(
     )
     image_A.pixels[~overlap_mask_A, :] = 0
     image_B.pixels[~overlap_mask_B, :] = 0
-    try:
-        refined_H = stitch_two(image_A.pixels, image_B.pixels, True, REFINEMENT_PARAMS)
-        return refined_H
-    except ValueError as e:
-        print("Failed to refine the stitching estimate.")
-        print(e)
-        return init_H
+
+    tolerance_value = ITERATIVE_REFINEMENT_PARAMS.GOOD_MATCH_CUTOFF
+    while tolerance_value <= 0.5:
+        print(
+            f"""
+Refinement step:
+Attempting to find {ITERATIVE_REFINEMENT_PARAMS.NUM_GOOD_MATCHES} matches
+at {(100*tolerance_value):2.2f}% tolerance...
+            """
+        )
+        try:
+            iteration_params = copy.copy(ITERATIVE_REFINEMENT_PARAMS)
+            iteration_params.GOOD_MATCH_CUTOFF = tolerance_value
+            result = stitch_two(image_A.pixels, image_B.pixels, True, iteration_params)
+            print(colored("Refinement successful", "green"))
+            return result
+        except InsufficientMatchesError as e:
+            print(colored(str(e), "red"))
+        tolerance_value += ITERATION_TEST_STEP
+
+    raise ValueError(
+        "Could not find enough matches up to 50% tolerance. Stitch cannot converge."
+    )
