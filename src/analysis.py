@@ -19,7 +19,7 @@ from lib.image_processing import (
     create_image_arrangement,
     PixelDownsampler,
     SupportedResamplingAlgorithm,
-    RGBAInfiniteCanvas,
+    RGBAInfiniteMixingCanvas,
 )
 from lib.filesystem import get_random_unique_in_folder
 
@@ -136,7 +136,6 @@ def perform_analysis_pass(input_folder, found_files):
 
         dpx1 = pixels1.copy()
         dpx2 = pixels2.copy()
-        dpx1[:, :, 3] = 128
 
         H = stitch_two_and_refine(pixels1, pixels2)
 
@@ -146,7 +145,7 @@ def perform_analysis_pass(input_folder, found_files):
             debug_folder, os.path.basename(input_folder) + "_" + f"pair{i}-{i+1}.png"
         )
 
-        dcanvas = RGBAInfiniteCanvas()
+        dcanvas = RGBAInfiniteMixingCanvas()
 
         debugx1 = 0
         debugy1 = 0
@@ -155,11 +154,11 @@ def perform_analysis_pass(input_folder, found_files):
         )
         dp1 = np.array([debugx1, debugy1], int)
         dp2 = np.array([debugx2, debugy2], int)
-        dcanvas.place_pixel_array(dpx1, dp1[0], dp1[1])
+        dcanvas.put(dpx1, dp1[0], dp1[1])
 
-        dcanvas.place_pixel_array(warp_without_cropping(dpx2, H), dp2[0], dp2[1])
+        dcanvas.put(warp_without_cropping(dpx2, H), dp2[0], dp2[1])
 
-        Image.fromarray(dcanvas.canvas).save(debug_fn)
+        Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
 
         Hs.append(H)
 

@@ -4,7 +4,7 @@ from PIL import Image
 import os
 import shutil
 
-from .RGBAInfiniteCanvas import RGBAInfiniteCanvas
+from .RGBAInfiniteMixingCanvas import RGBAInfiniteMixingCanvas
 
 
 def save_image(image: np.ndarray, directory: str, filename: str) -> str:
@@ -18,39 +18,22 @@ def save_image(image: np.ndarray, directory: str, filename: str) -> str:
 def create_image_arrangement(
     images: List[np.ndarray], locations: List[np.ndarray], output_file: str
 ) -> str:
-    
-    locations = np.array(locations,float).round().astype(int)
 
-    tlc = np.min(locations,axis=0)
+    locations = np.array(locations, float).round().astype(int)
+
+    tlc = np.min(locations, axis=0)
 
     locations = locations - tlc
-
-
 
     # Ensure the output directory exists, recreate if necessary
     if os.path.exists(output_file):
         os.remove(output_file)
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    # Step 1: Calculate the overall bounds
-    min_x = min(location[0] for location in locations)
-    min_y = min(location[1] for location in locations)
-    max_x = max(
-        location[0] + image.shape[1] for location, image in zip(locations, images)
-    )
-    max_y = max(
-        location[1] + image.shape[0] for location, image in zip(locations, images)
-    )
-
-    width = int(max_x - min_x)
-    height = int(max_y - min_y)
-
-    infinite_canvas = RGBAInfiniteCanvas(width, height)
+    infinite_canvas = RGBAInfiniteMixingCanvas()
 
     for i, [image, location] in enumerate(zip(images, locations)):
         print(f"Processing image {i+1}/{len(images)}...")
-        infinite_canvas.place_pixel_array(
-            image, *list(np.round(np.array(location)).astype(int))
-        )
+        infinite_canvas.put(image, *list(np.round(np.array(location)).astype(int)))
 
-    infinite_canvas.save_canvas(output_file)
+    Image.fromarray(infinite_canvas.to_RGBA()).save(output_file)
