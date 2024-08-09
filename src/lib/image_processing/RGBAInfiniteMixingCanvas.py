@@ -31,7 +31,7 @@ class RGBAInfiniteMixingCanvas:
         self.NB.put(combined_B, x, y)
 
         existing_DSamples = self.DSamples.get(x, y, W, H)
-        new_DSamples = existing_DSamples + 1
+        new_DSamples = existing_DSamples + A.copy()
         self.DSamples.put(new_DSamples, x, y)
 
     def to_RGBA(self):

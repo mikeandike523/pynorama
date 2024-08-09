@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 from termcolor import colored
 
-from .apply_h_matrix_to_point import apply_h_matrix_to_point
 from .RGBAImage import RGBAImage
 
 
@@ -18,25 +17,16 @@ class StitchParams(Protocol):
     RANSAC_REPROJECTION_THRESHOLD: float
 
 
-INIT_ESTIMATE_PARAMS: StitchParams = SimpleNamespace(
+STITCH_PARAMS: StitchParams = SimpleNamespace(
     BLUR_SIGMA=1.0,
-    NUM_GOOD_MATCHES=24,
-    GOOD_MATCH_CUTOFF=0.30,
-    NUM_TREES=4,
-    NUM_CHECKS=240,
-    RANSAC_REPROJECTION_THRESHOLD=3.0,
-)
-
-ITERATIVE_REFINEMENT_PARAMS: StitchParams = SimpleNamespace(
-    BLUR_SIGMA=1.0,
-    NUM_GOOD_MATCHES=24,
+    NUM_GOOD_MATCHES=32,
     GOOD_MATCH_CUTOFF=0.10,
-    NUM_TREES=4,
-    NUM_CHECKS=240,
-    RANSAC_REPROJECTION_THRESHOLD=3.0,
+    NUM_TREES=16,
+    NUM_CHECKS=640,
+    RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
-ITERATION_TEST_STEP = 0.05
+ITERATION_TEST_STEP = 0.025
 
 
 class InsufficientMatchesError(ValueError):
@@ -52,8 +42,7 @@ class InsufficientMatchesError(ValueError):
 def stitch_two(
     A: np.ndarray,
     B: np.ndarray,
-    exclude_fully_transparent=True,
-    params: StitchParams = INIT_ESTIMATE_PARAMS,
+    params: StitchParams = STITCH_PARAMS,
 ) -> np.ndarray:
     """
     Returns the H matrix for the perspective based stitching
@@ -65,8 +54,18 @@ def stitch_two(
     exclude_fully_transparent : boolean - Whether to exclude matches in fully transparent regions
     """
 
-    A = RGBAImage.from_pixels(A).to_greyscale().gaussian_blurred(params.BLUR_SIGMA).pixels
-    B = RGBAImage.from_pixels(B).to_greyscale().gaussian_blurred(params.BLUR_SIGMA).pixels
+    A = (
+        RGBAImage.from_pixels(A)
+        .to_greyscale()
+        .gaussian_blurred(params.BLUR_SIGMA)
+        .pixels
+    )
+    B = (
+        RGBAImage.from_pixels(B)
+        .to_greyscale()
+        .gaussian_blurred(params.BLUR_SIGMA)
+        .pixels
+    )
 
     # Create masks for fully transparent regions
     A_transparent_mask = A[:, :, 3] == 0 if A.shape[2] == 4 else None
@@ -83,14 +82,13 @@ def stitch_two(
         cv2.cvtColor(B, cv2.COLOR_BGRA2BGR), None
     )
 
-    if exclude_fully_transparent:
-        # Filter out keypoints in transparent regions
-        keypoints_A, descriptors_A = filter_keypoints(
-            keypoints_A, descriptors_A, A_transparent_mask
-        )
-        keypoints_B, descriptors_B = filter_keypoints(
-            keypoints_B, descriptors_B, B_transparent_mask
-        )
+
+    keypoints_A, descriptors_A = filter_keypoints(
+        keypoints_A, descriptors_A, A_transparent_mask
+    )
+    keypoints_B, descriptors_B = filter_keypoints(
+        keypoints_B, descriptors_B, B_transparent_mask
+    )
 
     # FLANN parameters
     FLANN_INDEX_KDTREE = 1
@@ -147,36 +145,8 @@ def filter_keypoints(keypoints, descriptors, mask):
     return valid_keypoints, np.array(valid_descriptors)
 
 
-def raster_closed_shape_onto_rectangle_mask(
-    mask: np.ndarray, shape: np.ndarray
-) -> np.ndarray:
-    """
-    Rasterizes a closed shape onto a rectangle mask,
-    automatically handling edge cases as well as
-    shapes partially or fully outside the rectangle
-
-    Arguments:
-    mask : ndarray - The mask to rasterize the shape onto
-    shape : ndarray - The closed shape to rasterize
-
-    Returns:
-    ndarray - The rasterized closed shape
-    """
-
-    # Ensure the shape is closed by converting it to an integer type
-    shape = shape.astype(np.int32)
-
-    # Create a copy of the mask to avoid modifying the original
-    target = np.expand_dims(mask.copy(), -1).astype(np.uint8) * 255
-
-    # Rasterize the shape onto the mask using OpenCV's fillPoly function
-    cv2.fillPoly(target, [shape], 1)
-
-    return target.squeeze() > 0
-
-
 def stitch_two_and_refine(
-    A: np.ndarray, B: np.ndarray, exclude_fully_transparent=True
+    A: np.ndarray, B: np.ndarray
 ) -> np.ndarray:
     """
     Gets an initial estimate by calling stitch_two
@@ -185,42 +155,20 @@ def stitch_two_and_refine(
 
     Then performs an iterative refinement approach to get the best match possible
     """
-    init_H = stitch_two(A.copy(), B.copy(), exclude_fully_transparent)
-    init_H_inv = np.linalg.inv(init_H)
-    image_A = RGBAImage.from_pixels(A.copy())
-    image_B = RGBAImage.from_pixels(B.copy())
-    corners_A = image_A.corners()
-    corners_B = image_B.corners()
-    overlap_mask_A = np.zeros(image_A.pixels.shape[:2], dtype=np.bool)
-    overlap_mask_B = np.zeros(image_B.pixels.shape[:2], dtype=np.bool)
-    warped_corners_A = np.array(
-        [apply_h_matrix_to_point(corner, init_H_inv) for corner in corners_A], float
-    )
-    warped_corners_B = np.array(
-        [apply_h_matrix_to_point(corner, init_H) for corner in corners_B], float
-    )
-    overlap_mask_A = raster_closed_shape_onto_rectangle_mask(
-        overlap_mask_A, warped_corners_B
-    )
-    overlap_mask_B = raster_closed_shape_onto_rectangle_mask(
-        overlap_mask_B, warped_corners_A
-    )
-    image_A.pixels[~overlap_mask_A, :] = 0
-    image_B.pixels[~overlap_mask_B, :] = 0
 
-    tolerance_value = ITERATIVE_REFINEMENT_PARAMS.GOOD_MATCH_CUTOFF
+    tolerance_value = STITCH_PARAMS.GOOD_MATCH_CUTOFF
     while tolerance_value <= 0.5:
         print(
             f"""
 Refinement step:
-Attempting to find {ITERATIVE_REFINEMENT_PARAMS.NUM_GOOD_MATCHES} matches
+Attempting to find {STITCH_PARAMS.NUM_GOOD_MATCHES} matches
 at {(100*tolerance_value):2.2f}% tolerance...
             """
         )
         try:
-            iteration_params = copy.copy(ITERATIVE_REFINEMENT_PARAMS)
+            iteration_params = copy.copy(STITCH_PARAMS)
             iteration_params.GOOD_MATCH_CUTOFF = tolerance_value
-            result = stitch_two(image_A.pixels, image_B.pixels, True, iteration_params)
+            result = stitch_two(A.copy(), B.copy(), iteration_params)
             print(colored("Refinement successful", "green"))
             return result
         except InsufficientMatchesError as e:
