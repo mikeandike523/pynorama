@@ -16,12 +16,12 @@ from .apply_h_matrix_to_point import apply_h_matrix_to_point
 # this is because its empirical and not known ahead of time
 # this is similar in concept to how normal vectors
 # are estimated in SDF computation and raymarching
-GRADIENT_ESTIMATE_RESOLUTION = 3
+GRADIENT_ESTIMATE_RESOLUTION = 2
 # Usually determined empirically
 # Delta fitness is usually quite small due to logarithmic nature of fitness function
 # The absolute fitness value at the initial state is generally not relevant
 # An analogy may be an amplifier or gain for a sensitive instrument
-STEP_PIXELS_PER_DELTA_FITNESS = 3000
+STEP_PIXELS_PER_DELTA_FITNESS = 2000
 # The maximum number of gradient ascent iterations
 NUM_GRADIENT_ASCENT_ITERATIONS = 5
 # Prevent travel of a corner if it is less (in magnitude) than this value
@@ -229,7 +229,8 @@ def calculate_fitness(A, B, init_H, current_corners):
 
     mse = compute_mse_overlap(A, B, current_H)
 
-    return -np.log(1 + mse + delta_overlapping_pixels / init_overlapping_pixel_count)
+    # return -np.log(1 + mse + delta_overlapping_pixels / init_overlapping_pixel_count)
+    return -np.log(1+mse)
 
 
 def filter_keypoints(keypoints, descriptors, mask):
