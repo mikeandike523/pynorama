@@ -14,6 +14,8 @@ termcolor = "*"
 pympler = "*"
 humanfriendly = "*"
 scipy = "*"
+rasterio = "*"
+shapely = "*"
 
 [requires]
 python_version = "3.8"
