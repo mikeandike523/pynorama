@@ -24,7 +24,7 @@ GRADIENT_ESTIMATE_RESOLUTION = 2
 # An analogy may be an amplifier or gain for a sensitive instrument
 GAIN = 1000
 # The maximum number of gradient ascent iterations
-NUM_GRADIENT_ASCENT_ITERATIONS = 10
+NUM_GRADIENT_ASCENT_ITERATIONS = 20
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
 TRAVEL_CUTOFF_PIXELS = 0.05
@@ -265,7 +265,7 @@ def calculate_fitness(A, B, init_H, current_corners):
 
 
 
-        fitness = 1/(1+mse+scaled_delta_overlapping_pixels)
+        fitness = -np.log(1+mse+scaled_delta_overlapping_pixels)
 
 
         print(f"Fitness: {fitness}")
