@@ -27,7 +27,7 @@ GAIN = 4000
 NUM_GRADIENT_ASCENT_ITERATIONS = 20
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
-TRAVEL_CUTOFF_PIXELS = 0.05
+TRAVEL_CUTOFF_PIXELS = 0.10
 
 
 class StitchParams(Protocol):
@@ -41,14 +41,14 @@ class StitchParams(Protocol):
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
     BLUR_SIGMA=2.0,
-    NUM_GOOD_MATCHES=20,
+    NUM_GOOD_MATCHES=25,
     GOOD_MATCH_CUTOFF=0.10,
     NUM_TREES=10,
-    NUM_CHECKS=400,
+    NUM_CHECKS=500,
     RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
-ITERATION_TEST_STEP = 0.020
+ITERATION_TEST_STEP = 0.015
 
 
 class InsufficientMatchesError(ValueError):
@@ -265,7 +265,6 @@ def calculate_fitness(A, B, init_H, current_corners):
 
         fitness = -np.log(1+mse*scaled_delta_overlapping_pixels)
 
-        # fitness = -np.log(1+mse)
 
         print(f"Fitness: {fitness}")
 
@@ -328,6 +327,8 @@ at {(100*tolerance_value):2.2f}% tolerance...
             iteration_params = copy.copy(STITCH_PARAMS)
             iteration_params.GOOD_MATCH_CUTOFF = tolerance_value
             init_H = stitch_two(A.copy(), B.copy(), iteration_params)
+
+            # return init_H
 
             print(
                 colored(
@@ -461,7 +462,7 @@ No corner traveled >= {TRAVEL_CUTOFF_PIXELS} pixels
 
 
 
-                print(colored(f"Corner deviation after iteration {step}:", "green"))
+                print(colored(f"Corner deviation after iteration {step+1}:", "green"))
                 print("x\ty")
                 for init_estimate_corner, current_corner in zip(init_estimate_corners, current_corners):
                     delta_x, delta_y = current_corner - init_estimate_corner
