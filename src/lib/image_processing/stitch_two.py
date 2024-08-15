@@ -330,6 +330,8 @@ at {(100*tolerance_value):2.2f}% tolerance...
             iteration_params.GOOD_MATCH_CUTOFF = tolerance_value
             init_H = stitch_two(A.copy(), B.copy(), iteration_params)
 
+            return init_H
+
             print(
                 colored(
                     f"Successfully found initial stitch estimate at tolerance {tolerance_value}",
