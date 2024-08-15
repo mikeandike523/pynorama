@@ -27,7 +27,7 @@ GAIN = 1000
 NUM_GRADIENT_ASCENT_ITERATIONS = 10
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
-TRAVEL_CUTOFF_PIXELS = 0.10
+TRAVEL_CUTOFF_PIXELS = 0.05
 
 
 class StitchParams(Protocol):
@@ -264,7 +264,8 @@ def calculate_fitness(A, B, init_H, current_corners):
         print(f"Scaled delta overlapping pixels: {scaled_delta_overlapping_pixels}")
 
 
-        fitness = np.exp(-mse-scaled_delta_overlapping_pixels)
+
+        fitness = 1/(1+mse+scaled_delta_overlapping_pixels)
 
 
         print(f"Fitness: {fitness}")
@@ -328,8 +329,6 @@ at {(100*tolerance_value):2.2f}% tolerance...
             iteration_params = copy.copy(STITCH_PARAMS)
             iteration_params.GOOD_MATCH_CUTOFF = tolerance_value
             init_H = stitch_two(A.copy(), B.copy(), iteration_params)
-
-            return init_H
 
             print(
                 colored(
