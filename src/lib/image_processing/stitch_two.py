@@ -22,12 +22,12 @@ GRADIENT_ESTIMATE_RESOLUTION = 2
 # Delta fitness is usually quite small due to logarithmic nature of fitness function
 # The absolute fitness value at the initial state is generally not relevant
 # An analogy may be an amplifier or gain for a sensitive instrument
-STEP_PIXELS_PER_DELTA_FITNESS = 200
+GAIN = 4000
 # The maximum number of gradient ascent iterations
 NUM_GRADIENT_ASCENT_ITERATIONS = 20
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
-TRAVEL_CUTOFF_PIXELS = 0.25
+TRAVEL_CUTOFF_PIXELS = 0.05
 
 
 class StitchParams(Protocol):
@@ -35,20 +35,20 @@ class StitchParams(Protocol):
     NUM_GOOD_MATCHES: int
     GOOD_MATCH_CUTOFF: float
     NUM_TREES: int
-    NUM_CHEßCKS: int
+    NUM_CHECKS: int
     RANSAC_REPROJECTION_THRESHOLD: float
 
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
-    BLUR_SIGMA=1.0,
-    NUM_GOOD_MATCHES=32,
+    BLUR_SIGMA=2.0,
+    NUM_GOOD_MATCHES=20,
     GOOD_MATCH_CUTOFF=0.10,
-    NUM_TREES=16,
-    NUM_CHECKS=640,
+    NUM_TREES=10,
+    NUM_CHECKS=400,
     RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
-ITERATION_TEST_STEP = 0.025
+ITERATION_TEST_STEP = 0.020
 
 
 class InsufficientMatchesError(ValueError):
@@ -173,7 +173,10 @@ def compute_mse_overlap(A: np.ndarray, B: np.ndarray, H: np.ndarray) -> float:
 
     # Already implemented and tested elsewhere
     # Is a one-liner to do matrix multiplication and W division in one step
-    B_tlc=apply_h_matrix_to_point(np.array([0, 0], float), H)
+    B_points=np.array([
+        apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(B).corners()
+    ],float)
+    B_tlc=np.min(B_points, axis=0)
     warped_B = warp_without_cropping(B, H)
     warped_B_H, warped_B_W = warped_B.shape[:2]
 
@@ -216,15 +219,15 @@ def compute_mse_overlap(A: np.ndarray, B: np.ndarray, H: np.ndarray) -> float:
     R1, G1, B1 = (channel.astype(float)/255 for channel in (R1, G1, B1))
     R2, G2, B2 = (channel.astype(float)/255 for channel in (R2, G2, B2))
 
-    total_square_error_R = np.sum((255**2)*np.power(R1-R2,2))
-    total_square_error_G = np.sum((255**2)*np.power(G1-G2,2))
-    total_square_error_B = np.sum((255**2)*np.power(B1-B2,2))
+    total_square_error_R = np.sum(np.power(R1-R2,2))
+    total_square_error_G = np.sum(np.power(G1-G2,2))
+    total_square_error_B = np.sum(np.power(B1-B2,2))
 
     mse = (total_square_error_R + total_square_error_G + total_square_error_B) / (3* denom)
 
     return mse
 
-def calculate_fitness(A, B, current_corners):
+def calculate_fitness(A, B, init_H, current_corners):
 
     # for simplicity
     assert A.shape == B.shape, "A and B must be of the same shape"
@@ -237,13 +240,36 @@ def calculate_fitness(A, B, current_corners):
         untransformed_corners.astype(np.float32),
     )
 
+    def calc_num_overlapping_pixels_at_H(H):
+        mask_A, _ = compute_overlapping_pixels(A, B, H)
+        return np.count_nonzero(mask_A)
+    
+    init_overlapping_pixels = calc_num_overlapping_pixels_at_H(init_H)
+    current_overlapping_pixels = calc_num_overlapping_pixels_at_H(current_H)
+
+    if init_overlapping_pixels == 0:
+        raise ZeroDivisionError("No overlapping pixels found at initial H")
+
+    scaled_delta_overlapping_pixels = abs(current_overlapping_pixels - init_overlapping_pixels)/init_overlapping_pixels
  
 
     try:
 
-        mse = compute_mse_overlap(A, B, current_H)
+        mse = compute_mse_overlap(RGBAImage.from_pixels(A).to_greyscale().pixels, 
+                                  RGBAImage.from_pixels(B).to_greyscale().pixels
+                                  , current_H)
 
-        return -np.log(1+mse)
+
+        print(f"MSE: {mse}")
+        print(f"Scaled delta overlapping pixels: {scaled_delta_overlapping_pixels}")
+
+        fitness = -np.log(1+mse*scaled_delta_overlapping_pixels)
+
+        # fitness = -np.log(1+mse)
+
+        print(f"Fitness: {fitness}")
+
+        return fitness
     
     
     except ZeroDivisionError as e:
@@ -345,11 +371,13 @@ at {(100*tolerance_value):2.2f}% tolerance...
                     minus_fitness = calculate_fitness(
                         A,
                         B,
+                        init_H.copy(),
                         np.array(new_parameter_set_minus, float).reshape((-1, 2)),
                     )
                     plus_fitness = calculate_fitness(
                         A,
                         B,
+                        init_H.copy(),
                         np.array(new_parameter_set_plus, float).reshape((-1, 2)),
                     )
                     minus_fitness = minus_fitness if minus_fitness is not None else 0
@@ -385,10 +413,10 @@ at {(100*tolerance_value):2.2f}% tolerance...
                 added_fitness_B = np.linalg.norm(coordinate_gradient[1])
                 added_fitness_C = np.linalg.norm(coordinate_gradient[2])
                 added_fitness_D = np.linalg.norm(coordinate_gradient[3])
-                travel_A = added_fitness_A * STEP_PIXELS_PER_DELTA_FITNESS
-                travel_B = added_fitness_B * STEP_PIXELS_PER_DELTA_FITNESS
-                travel_C = added_fitness_C * STEP_PIXELS_PER_DELTA_FITNESS
-                travel_D = added_fitness_D * STEP_PIXELS_PER_DELTA_FITNESS
+                travel_A = added_fitness_A * GAIN
+                travel_B = added_fitness_B * GAIN
+                travel_C = added_fitness_C * GAIN
+                travel_D = added_fitness_D * GAIN
                 print(colored("corner gradients (normalized/direction-only) this iteration:", "green"))
                 print("x\ty")
                 for grad_x,grad_y in [grad_A, grad_B, grad_C, grad_D]:
