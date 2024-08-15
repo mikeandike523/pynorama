@@ -41,14 +41,14 @@ class StitchParams(Protocol):
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
     BLUR_SIGMA=2.0,
-    NUM_GOOD_MATCHES=20,
+    NUM_GOOD_MATCHES=32,
     GOOD_MATCH_CUTOFF=0.10,
-    NUM_TREES=10,
-    NUM_CHECKS=400,
+    NUM_TREES=8,
+    NUM_CHECKS=512,
     RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
-ITERATION_TEST_STEP = 0.020
+ITERATION_TEST_STEP = 0.025
 
 
 class InsufficientMatchesError(ValueError):
