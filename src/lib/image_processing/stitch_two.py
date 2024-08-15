@@ -23,7 +23,7 @@ GRADIENT_ESTIMATE_RESOLUTION = 2
 # An analogy may be an amplifier or gain for a sensitive instrument
 STEP_PIXELS_PER_DELTA_FITNESS = 2000
 # The maximum number of gradient ascent iterations
-NUM_GRADIENT_ASCENT_ITERATIONS = 5
+NUM_GRADIENT_ASCENT_ITERATIONS = 8
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
 TRAVEL_CUTOFF_PIXELS = 0.25
