@@ -17,17 +17,17 @@ from .warp_without_cropping import warp_without_cropping
 # this is because its empirical and not known ahead of time
 # this is similar in concept to how normal vectors
 # are estimated in SDF computation and raymarching
-GRADIENT_ESTIMATE_RESOLUTION = 2
+GRADIENT_ESTIMATE_RESOLUTION = 1
 # Usually determined empirically
 # Delta fitness is usually quite small due to logarithmic nature of fitness function
 # The absolute fitness value at the initial state is generally not relevant
 # An analogy may be an amplifier or gain for a sensitive instrument
-GAIN = 4000
+GAIN = 1000
 # The maximum number of gradient ascent iterations
-NUM_GRADIENT_ASCENT_ITERATIONS = 20
+NUM_GRADIENT_ASCENT_ITERATIONS = 10
 # Prevent travel of a corner if it is less (in magnitude) than this value
 # If all corners dont travel, stop gradient ascent
-TRAVEL_CUTOFF_PIXELS = 0.10
+TRAVEL_CUTOFF_PIXELS = 0.20
 
 
 class StitchParams(Protocol):
@@ -41,14 +41,14 @@ class StitchParams(Protocol):
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
     BLUR_SIGMA=2.0,
-    NUM_GOOD_MATCHES=25,
+    NUM_GOOD_MATCHES=20,
     GOOD_MATCH_CUTOFF=0.10,
     NUM_TREES=10,
-    NUM_CHECKS=500,
+    NUM_CHECKS=400,
     RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
-ITERATION_TEST_STEP = 0.015
+ITERATION_TEST_STEP = 0.020
 
 
 class InsufficientMatchesError(ValueError):
@@ -263,7 +263,7 @@ def calculate_fitness(A, B, init_H, current_corners):
         print(f"MSE: {mse}")
         print(f"Scaled delta overlapping pixels: {scaled_delta_overlapping_pixels}")
 
-        fitness = -np.log(1+mse*scaled_delta_overlapping_pixels)
+        fitness = 1/(1+mse+scaled_delta_overlapping_pixels)
 
 
         print(f"Fitness: {fitness}")
