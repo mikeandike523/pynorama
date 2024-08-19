@@ -5,6 +5,7 @@ from .RGBAImage import *
 from .RGBAInfiniteCanvas import *
 from .RGBAInfiniteMixingCanvas import *
 from .apply_h_matrix_to_point import *
+from .compute_mse_overlap import *
 from .compute_overlapping_pixels import *
 from .create_image_arrangement import *
 from .stitch_two import *

@@ -9,7 +9,7 @@ from PIL import Image
 from lib.image_processing import (
     PixelDownsampler,
     RGBAImage,
-    stitch_two_and_refine,
+    stitch_two,
     apply_h_matrix_to_point,
     warp_without_cropping,
 )
@@ -137,7 +137,7 @@ def perform_analysis_pass(input_folder, found_files):
         dpx1 = pixels1.copy()
         dpx2 = pixels2.copy()
 
-        H = stitch_two_and_refine(pixels1, pixels2)
+        H = stitch_two(pixels1, pixels2)
 
         debug_folder = "testing/output/debugpairs"
 
@@ -161,8 +161,6 @@ def perform_analysis_pass(input_folder, found_files):
         Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
 
         Hs.append(H)
-
-        print(H)
 
     print("Obtaining panorama segment boundaries...")
 
