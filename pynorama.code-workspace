@@ -6,7 +6,8 @@
 	],
 	"settings": {
 		"python.analysis.extraPaths": [
-			"${workspaceFolder}/src"
+			"${workspaceFolder}/src",
+			"/Users/michaelsohnen/Projects/live-image-viewer"
 		]
 	}
 }

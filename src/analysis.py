@@ -24,6 +24,9 @@ from lib.image_processing import (
 from lib.filesystem import get_random_unique_in_folder
 
 
+from pysrc.client import send_image
+
+
 def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
     if len(arrays) != len(weights):
         raise ValueError("Number of arrays and weights must match.")
@@ -129,7 +132,6 @@ def perform_analysis_pass(input_folder, found_files):
     init_W = init_image.get_width()
     init_H = init_image.get_height()
 
-
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2)).pixels
@@ -149,9 +151,13 @@ def perform_analysis_pass(input_folder, found_files):
 
         debugx1 = 0
         debugy1 = 0
-        debugx2, debugy2 = apply_h_matrix_to_point(
-            np.array([debugx1, debugy1], float), H
-        )
+        # debugx2, debugy2 = apply_h_matrix_to_point(
+        #     np.array([debugx1, debugy1], float), H
+        # )
+        debug_warped_corners = [
+            apply_h_matrix_to_point(corner, H) for corner in init_image.corners()
+        ]
+        debugx2, debugy2 = list(np.min(debug_warped_corners, axis=0))
         dp1 = np.array([debugx1, debugy1], int)
         dp2 = np.array([debugx2, debugy2], int)
         dcanvas.put(dpx1, dp1[0], dp1[1])
@@ -159,6 +165,8 @@ def perform_analysis_pass(input_folder, found_files):
         dcanvas.put(warp_without_cropping(dpx2, H), dp2[0], dp2[1])
 
         Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
+
+        send_image(os.path.basename(debug_fn), dcanvas.to_RGBA())
 
         Hs.append(H)
 
@@ -170,7 +178,6 @@ def perform_analysis_pass(input_folder, found_files):
     # D = bottomleft corner
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
-
 
     init_A, init_B, init_C, init_D = init_image.corners()
 

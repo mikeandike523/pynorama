@@ -2,6 +2,9 @@ import traceback
 
 import click
 import termcolor
+import sys, os
+
+sys.path.insert(0, '/Users/michaelsohnen/Projects/live-image-viewer')
 
 
 from analysis import perform_analysis

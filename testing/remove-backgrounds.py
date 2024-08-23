@@ -1,10 +1,6 @@
 import os
 import shutil
 
-import sys
-print(sys.path)
-print(os.environ["PYTHONPATH"])
-
 from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
