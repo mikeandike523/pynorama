@@ -166,7 +166,13 @@ def perform_analysis_pass(input_folder, found_files):
 
         Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
 
-        send_image(os.path.basename(debug_fn), dcanvas.to_RGBA())
+        try:
+
+            send_image(os.path.basename(debug_fn), dcanvas.to_RGBA())
+
+        except Exception as e:
+
+            print(f"Error sending image to image viewer: {e}")
 
         Hs.append(H)
 
