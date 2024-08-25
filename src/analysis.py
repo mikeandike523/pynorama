@@ -129,8 +129,12 @@ def perform_analysis_pass(input_folder, found_files):
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    init_W = init_image.get_width()
-    init_H = init_image.get_height()
+    init_A, init_B, init_C, init_D = init_image.corners()
+
+    corner_seq_A = [init_A]
+    corner_seq_B = [init_B]
+    corner_seq_C = [init_C]
+    corner_seq_D = [init_D]
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
@@ -166,6 +170,41 @@ def perform_analysis_pass(input_folder, found_files):
 
         Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
 
+        Hs.append(H)
+
+        last_H = Hs[-1] if len(Hs) > 0 else np.eye(3)
+        last_corner_A = corner_seq_A[-1].copy()
+        last_corner_B = corner_seq_B[-1].copy()
+        last_corner_C = corner_seq_C[-1].copy()
+        last_corner_D = corner_seq_D[-1].copy()
+
+        combined_H = np.matmul(H, last_H)
+
+        last_tlc = top_left_from_points(
+            np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
+        )
+
+        corner_deltas = np.array(
+            [
+                apply_h_matrix_to_point(corner, combined_H)
+                for corner in init_image.corners().copy()
+            ]
+        )
+
+        delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
+
+        next_A = last_tlc + delta_A
+        next_B = last_tlc + delta_B
+        next_C = last_tlc + delta_C
+        next_D = last_tlc + delta_D
+
+        corner_seq_A.append(next_A)
+        corner_seq_B.append(next_B)
+        corner_seq_C.append(next_C)
+        corner_seq_D.append(next_D)
+
+        print(next_A, next_B, next_C, next_D)
+
         try:
 
             send_image(os.path.basename(debug_fn), dcanvas.to_RGBA())
@@ -174,7 +213,6 @@ def perform_analysis_pass(input_folder, found_files):
 
             print(f"Error sending image to image viewer: {e}")
 
-        Hs.append(H)
 
     print("Obtaining panorama segment boundaries...")
 
@@ -183,40 +221,10 @@ def perform_analysis_pass(input_folder, found_files):
     # C = bottomright corner
     # D = bottomleft corner
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
 
-    init_A, init_B, init_C, init_D = init_image.corners()
 
-    corner_seq_A = [init_A]
-    corner_seq_B = [init_B]
-    corner_seq_C = [init_C]
-    corner_seq_D = [init_D]
+      
 
-    for H in Hs:
-
-        last_corner_A = corner_seq_A[-1]
-        last_corner_B = corner_seq_B[-1]
-        last_corner_C = corner_seq_C[-1]
-        last_corner_D = corner_seq_D[-1]
-
-        tlc = top_left_from_points(
-            [last_corner_A, last_corner_B, last_corner_C, last_corner_D]
-        )
-
-        delta_next_corner_A = apply_h_matrix_to_point(init_A.copy(), H)
-        delta_next_corner_B = apply_h_matrix_to_point(init_B.copy(), H)
-        delta_next_corner_C = apply_h_matrix_to_point(init_C.copy(), H)
-        delta_next_corner_D = apply_h_matrix_to_point(init_D.copy(), H)
-
-        next_corner_A = tlc + delta_next_corner_A
-        next_corner_B = tlc + delta_next_corner_B
-        next_corner_C = tlc + delta_next_corner_C
-        next_corner_D = tlc + delta_next_corner_D
-
-        corner_seq_A.append(next_corner_A)
-        corner_seq_B.append(next_corner_B)
-        corner_seq_C.append(next_corner_C)
-        corner_seq_D.append(next_corner_D)
 
     boundaries = [
         np.array(corners, dtype=float)
@@ -310,7 +318,7 @@ You are missing the following files:
 
     boundaries = perform_analysis_pass(input_folder, found_files)
 
-    anchors = [np.mean(boundary, axis=0) for boundary in boundaries]
+    anchors = [top_left_from_points(boundary) for boundary in boundaries]
 
     deltas = [boundary - anchor for boundary, anchor in zip(boundaries, anchors)]
 
@@ -318,15 +326,17 @@ You are missing the following files:
     locations = []
 
     for anchor, delta, found_file in zip(anchors, deltas, found_files):
-        tlc = anchor + delta[0]
+        tlc = (anchor + delta[0])/2
 
-        src = np.array(init_image.corners(), float).astype(np.float32)
+        src = np.array(init_image.corners(), float).astype(np.float32)/2
         dst = (delta - tlc).astype(np.float32)
 
         H = cv2.getPerspectiveTransform(src, dst)
 
         image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-        warped_image = warp_without_cropping(image.pixels, H)
+        downsampled = cv2.resize(image.pixels,(image.get_width()//2, image.get_height()//2), interpolation=cv2.INTER_AREA)
+
+        warped_image = warp_without_cropping(downsampled, H)
         warped_images.append(warped_image)
         locations.append(tlc)
 
