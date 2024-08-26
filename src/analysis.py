@@ -3,28 +3,18 @@ import shutil
 
 import cv2
 import numpy as np
-from termcolor import colored
 from PIL import Image
 
 from lib.image_processing import (
-    PixelDownsampler,
     RGBAImage,
     stitch_two,
     apply_h_matrix_to_point,
     warp_without_cropping,
 )
-from lib import make_fresh_folder
-from lib.image_processing.debugging import boundary_svg
 from lib.image_processing import (
     create_image_arrangement,
-    PixelDownsampler,
-    SupportedResamplingAlgorithm,
     RGBAInfiniteMixingCanvas,
 )
-from lib.filesystem import get_random_unique_in_folder
-
-
-from pysrc.client import send_image
 
 
 def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
@@ -127,7 +117,7 @@ def perform_analysis_pass(input_folder, found_files):
 
     Hs = []
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 2)
 
     init_A, init_B, init_C, init_D = init_image.corners()
 
@@ -137,8 +127,8 @@ def perform_analysis_pass(input_folder, found_files):
     corner_seq_D = [init_D]
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
-        pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1)).pixels
-        pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2)).pixels
+        pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 2).pixels
+        pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 2).pixels
 
         dpx1 = pixels1.copy()
         dpx2 = pixels2.copy()
@@ -155,9 +145,7 @@ def perform_analysis_pass(input_folder, found_files):
 
         debugx1 = 0
         debugy1 = 0
-        # debugx2, debugy2 = apply_h_matrix_to_point(
-        #     np.array([debugx1, debugy1], float), H
-        # )
+
         debug_warped_corners = [
             apply_h_matrix_to_point(corner, H) for corner in init_image.corners()
         ]
@@ -205,26 +193,7 @@ def perform_analysis_pass(input_folder, found_files):
 
         print(next_A, next_B, next_C, next_D)
 
-        try:
-
-            send_image(os.path.basename(debug_fn), dcanvas.to_RGBA())
-
-        except Exception as e:
-
-            print(f"Error sending image to image viewer: {e}")
-
-
     print("Obtaining panorama segment boundaries...")
-
-    # A = topleft corner
-    # B = topright corner
-    # C = bottomright corner
-    # D = bottomleft corner
-
-
-
-      
-
 
     boundaries = [
         np.array(corners, dtype=float)
@@ -314,7 +283,7 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]))
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 2)
 
     boundaries = perform_analysis_pass(input_folder, found_files)
 
@@ -326,17 +295,16 @@ You are missing the following files:
     locations = []
 
     for anchor, delta, found_file in zip(anchors, deltas, found_files):
-        tlc = (anchor + delta[0])/2
+        tlc = anchor + delta[0]
 
-        src = np.array(init_image.corners(), float).astype(np.float32)/2
+        src = np.array(init_image.corners(), float).astype(np.float32)
         dst = (delta - tlc).astype(np.float32)
 
         H = cv2.getPerspectiveTransform(src, dst)
 
-        image = RGBAImage.from_file(os.path.join(input_folder, found_file))
-        downsampled = cv2.resize(image.pixels,(image.get_width()//2, image.get_height()//2), interpolation=cv2.INTER_AREA)
+        image = RGBAImage.from_file(os.path.join(input_folder, found_file), 2)
 
-        warped_image = warp_without_cropping(downsampled, H)
+        warped_image = warp_without_cropping(image, H)
         warped_images.append(warped_image)
         locations.append(tlc)
 

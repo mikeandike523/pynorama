@@ -27,7 +27,9 @@ class PixelDownsampler:
         init_w,
         init_h,
         factor=1.0,
-        interpolation=SupportedResamplingAlgorithm.CUBIC,
+        interpolation=SupportedResamplingAlgorithm.AREA
+
+
     ):
         """
         Arguments:

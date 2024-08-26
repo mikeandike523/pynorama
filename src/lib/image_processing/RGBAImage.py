@@ -3,7 +3,8 @@ from typing import List
 import numpy as np
 from PIL import Image
 import cv2
-from scipy.ndimage import gaussian_filter, laplace
+from scipy.ndimage import gaussian_filter
+from .PixelDownsampler import PixelDownsampler
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -105,10 +106,12 @@ class RGBAImage:
         )
 
     @classmethod
-    def from_file(cls, file_path: str) -> "RGBAImage":
+    def from_file(cls, file_path: str, downsampling=1.0) -> "RGBAImage":
         """Loads an RGBA image from a file and returns an instance of RGBAImage."""
         img = Image.open(file_path).convert("RGBA")
-        pixels = np.array(img)
+        pixels = PixelDownsampler(img.width, img.height, downsampling).downsample(
+            np.asarray(img)
+        )
         return cls.from_pixels(pixels)
 
     def corners(self) -> List[np.ndarray]:
@@ -166,7 +169,7 @@ class RGBAImage:
         combined = 1 / 3 * (R.astype(float) + G.astype(float) + B.astype(float))
         grey = combined.astype(np.uint8)
         return RGBAImage(np.dstack((grey, grey, grey, A)).astype(np.uint8))
-    
+
     def gaussian_blurred(self, sigma: float) -> "RGBAImage":
         if sigma == 0:
             return RGBAImage(self.pixels)
