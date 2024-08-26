@@ -304,7 +304,7 @@ You are missing the following files:
 
         image = RGBAImage.from_file(os.path.join(input_folder, found_file), 2)
 
-        warped_image = warp_without_cropping(image, H)
+        warped_image = warp_without_cropping(image.pixels, H)
         warped_images.append(warped_image)
         locations.append(tlc)
 
