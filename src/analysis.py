@@ -127,56 +127,39 @@ def perform_analysis_pass(input_folder, found_files):
     corner_seq_D = [init_D]
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
-        pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 2).pixels
-        pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 2).pixels
 
-        dpx1 = pixels1.copy()
-        dpx2 = pixels2.copy()
+        print(f"Processing pair {i+1}/{len(found_files)-1}...")
+
+        pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 1).pixels
+        pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 1).pixels
 
         H = stitch_two(pixels1, pixels2)
 
-        debug_folder = "testing/output/debugpairs"
-
-        debug_fn = os.path.join(
-            debug_folder, os.path.basename(input_folder) + "_" + f"pair{i}-{i+1}.png"
-        )
-
-        dcanvas = RGBAInfiniteMixingCanvas()
-
-        debugx1 = 0
-        debugy1 = 0
-
-        debug_warped_corners = [
-            apply_h_matrix_to_point(corner, H) for corner in init_image.corners()
-        ]
-        debugx2, debugy2 = list(np.min(debug_warped_corners, axis=0))
-        dp1 = np.array([debugx1, debugy1], int)
-        dp2 = np.array([debugx2, debugy2], int)
-        dcanvas.put(dpx1, dp1[0], dp1[1])
-
-        dcanvas.put(warp_without_cropping(dpx2, H), dp2[0], dp2[1])
-
-        Image.fromarray(dcanvas.to_RGBA()).save(debug_fn)
-
         Hs.append(H)
 
-        last_H = Hs[-1] if len(Hs) > 0 else np.eye(3)
         last_corner_A = corner_seq_A[-1].copy()
         last_corner_B = corner_seq_B[-1].copy()
         last_corner_C = corner_seq_C[-1].copy()
         last_corner_D = corner_seq_D[-1].copy()
 
-        combined_H = np.matmul(H, last_H)
-
         last_tlc = top_left_from_points(
             np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
         )
 
-        corner_deltas = np.array(
+        last_deltas = np.array(
             [
-                apply_h_matrix_to_point(corner, combined_H)
-                for corner in init_image.corners().copy()
+                corner - last_tlc
+                for corner in [
+                    last_corner_A,
+                    last_corner_B,
+                    last_corner_C,
+                    last_corner_D,
+                ]
             ]
+        )
+
+        corner_deltas = np.array(
+            [apply_h_matrix_to_point(corner, H) for corner in last_deltas]
         )
 
         delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
@@ -218,10 +201,6 @@ def perform_analysis(input_folder, output_file):
         if not os.path.isfile(output_file):
             raise ValueError(f"{output_file} already exists and is not a file.")
         os.remove(output_file)
-
-    if os.path.exists("testing/output/debugpairs"):
-        shutil.rmtree("testing/output/debugpairs")
-    os.makedirs("testing/output/debugpairs")
 
     permitted_extensions = [".tif", ".tiff", ".jpg", ".jpeg", ".png", ".gif", ".bmp"]
 
@@ -283,7 +262,7 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 2)
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1)
 
     boundaries = perform_analysis_pass(input_folder, found_files)
 
@@ -295,17 +274,16 @@ You are missing the following files:
     locations = []
 
     for anchor, delta, found_file in zip(anchors, deltas, found_files):
-        tlc = anchor + delta[0]
 
         src = np.array(init_image.corners(), float).astype(np.float32)
-        dst = (delta - tlc).astype(np.float32)
+        dst = (delta).astype(np.float32)
 
         H = cv2.getPerspectiveTransform(src, dst)
 
-        image = RGBAImage.from_file(os.path.join(input_folder, found_file), 2)
+        image = RGBAImage.from_file(os.path.join(input_folder, found_file), 1)
 
         warped_image = warp_without_cropping(image.pixels, H)
         warped_images.append(warped_image)
-        locations.append(tlc)
+        locations.append(anchor)
 
     create_image_arrangement(warped_images, locations, output_file)

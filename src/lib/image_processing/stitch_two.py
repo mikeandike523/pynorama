@@ -20,8 +20,8 @@ class StitchParams(Protocol):
 
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
-    BLUR_SIGMA=0.0,
-    NUM_GOOD_MATCHES=32,
+    BLUR_SIGMA=1.0,
+    NUM_GOOD_MATCHES=16,
     GOOD_MATCH_CUTOFF=0.10,
     NUM_TREES=8,
     NUM_CHECKS=512,
@@ -158,7 +158,7 @@ def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     """
 
     tolerance_value = STITCH_PARAMS.GOOD_MATCH_CUTOFF
-    while tolerance_value <= 0.5:
+    while tolerance_value < 1.0:
         print(
             colored(
                 f"Attempting to find stitch matrix as {100*tolerance_value:.2f}%",
@@ -182,5 +182,5 @@ def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
         tolerance_value += ITERATION_TEST_STEP
 
     raise ValueError(
-        "Could not find initial stitch estimate before reaching 50% tolerance"
+        "Could not find initial stitch estimate before reaching 100% tolerance"
     )
