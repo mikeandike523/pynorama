@@ -117,7 +117,7 @@ def perform_analysis_pass(input_folder, found_files):
 
     Hs = []
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 2)
+    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1)
 
     init_A, init_B, init_C, init_D = init_image.corners()
 

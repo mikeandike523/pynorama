@@ -21,10 +21,10 @@ class StitchParams(Protocol):
 
 STITCH_PARAMS: StitchParams = SimpleNamespace(
     BLUR_SIGMA=1.0,
-    NUM_GOOD_MATCHES=16,
+    NUM_GOOD_MATCHES=24,
     GOOD_MATCH_CUTOFF=0.10,
-    NUM_TREES=8,
-    NUM_CHECKS=512,
+    NUM_TREES=6,
+    NUM_CHECKS=480,
     RANSAC_REPROJECTION_THRESHOLD=2.0,
 )
 
