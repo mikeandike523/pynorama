@@ -113,7 +113,13 @@ def center_from_points(pts):
 
 
 def perform_analysis_pass(input_folder, found_files):
-    print("Testing pair stitchability...")
+
+    debug_pairs_folder = os.path.join(os.getcwd(), "testing", "output", "debugpairs")
+
+    if os.path.exists(debug_pairs_folder):
+        shutil.rmtree(debug_pairs_folder)
+
+    os.makedirs(debug_pairs_folder, exist_ok=True)
 
     Hs = []
 
@@ -130,10 +136,33 @@ def perform_analysis_pass(input_folder, found_files):
 
         print(f"Processing pair {i+1}/{len(found_files)-1}...")
 
+        last_H = Hs[-1] if Hs else np.eye(3)
+
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 1).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 1).pixels
 
+        pixels1 = warp_without_cropping(pixels1.copy(), last_H)
+
         H = stitch_two(pixels1, pixels2)
+
+        debug_canvas = RGBAInfiniteMixingCanvas()
+
+        dpx1 = pixels1.copy()
+        dpx2 = warp_without_cropping(pixels2.copy(), H)
+        dpx2tlc = top_left_from_points(
+            np.array(
+                [apply_h_matrix_to_point(corner, H) for corner in init_image.corners()]
+            )
+        )
+
+        debug_canvas.put(dpx1, 0, 0)
+        debug_canvas.put(dpx2, int(round(dpx2tlc[0])), int(round(dpx2tlc[1])))
+
+        debug_name = f"debug_pair_{i+1}.png"
+
+        Image.fromarray(debug_canvas.to_RGBA()).save(
+            os.path.join(debug_pairs_folder, debug_name)
+        )
 
         Hs.append(H)
 
@@ -146,22 +175,25 @@ def perform_analysis_pass(input_folder, found_files):
             np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
         )
 
-        last_deltas = np.array(
-            [
-                corner - last_tlc
-                for corner in [
-                    last_corner_A,
-                    last_corner_B,
-                    last_corner_C,
-                    last_corner_D,
-                ]
-            ]
-        )
+        # last_deltas = np.array(
+        #     [
+        #         corner - last_tlc
+        #         for corner in [
+        #             last_corner_A,
+        #             last_corner_B,
+        #             last_corner_C,
+        #             last_corner_D,
+        #         ]
+        #     ]
+        # )
+
+        # corner_deltas = np.array(
+        #     [apply_h_matrix_to_point(corner, H) for corner in last_deltas]
+        # )
 
         corner_deltas = np.array(
-            [apply_h_matrix_to_point(corner, H) for corner in last_deltas]
+            [apply_h_matrix_to_point(corner, H) for corner in init_image.corners()]
         )
-
         delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
 
         next_A = last_tlc + delta_A
