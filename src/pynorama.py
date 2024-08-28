@@ -1,5 +1,3 @@
-import os
-import sys
 import traceback
 
 import click
@@ -17,8 +15,13 @@ def main(
     output_file,
     verbose=False,
 ):
+    """
+    The main procedure of the "pynorama" CLI app
+    """
+
     try:
         perform_analysis(input_folder, output_file)
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         tb = traceback.format_exc()
         click.echo(

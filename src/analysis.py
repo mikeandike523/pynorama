@@ -5,114 +5,27 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from lib.image_processing import (
-    RGBAImage,
-    stitch_two,
-    apply_h_matrix_to_point,
-    warp_without_cropping,
-)
-from lib.image_processing import (
-    create_image_arrangement,
-    RGBAInfiniteMixingCanvas,
-)
-
-
-def weighted_mean_of_numpy_arrays(arrays, weights, epsilon=1e-9):
-    if len(arrays) != len(weights):
-        raise ValueError("Number of arrays and weights must match.")
-    if len(arrays) == 0:
-        raise ValueError("No arrays provided.")
-    if len(arrays) == 1:
-        raise ValueError(
-            "Only one array provided. Behavior in this case is not clearly defined."
-        )
-    if np.any(~np.isfinite(weights)) or np.any(np.array(weights) < 0):
-        raise ValueError("Weights must be finite and non-negative.")
-    if np.sum(weights) == 0:
-        raise ValueError("At least one non-zero weight required.")
-    if np.abs(np.sum(weights)) < epsilon:
-        raise ValueError("Weights sum is very close to zero.")
-    ndim = arrays[0].ndim
-    if any([array.ndim != ndim for array in arrays]):
-        raise ValueError("All arrays must have the same number of dimensions.")
-    shape = arrays[0].shape
-    if any([array.shape != shape for array in arrays]):
-        raise ValueError("All arrays must have the same shape.")
-    total = weights[0] * arrays[0].copy()
-    for array, weight in zip(arrays[1:], weights[1:]):
-        total += weight * array
-    total /= np.sum(weights)
-    return total
-
-
-def selection_of_numpy_arrays(arrays, weights):
-    if len(arrays) != len(weights):
-        raise ValueError("Number of arrays and weights must match.")
-    if len(arrays) == 0:
-        raise ValueError("No arrays provided.")
-    if len(arrays) == 1:
-        return arrays[0]
-    if np.any(~np.isfinite(weights)) or np.any(np.array(weights) < 0):
-        raise ValueError("Weights must be finite and non-negative.")
-    ndim = arrays[0].ndim
-    if any([array.ndim != ndim for array in arrays]):
-        raise ValueError("All arrays must have the same number of dimensions.")
-    shape = arrays[0].shape
-    if any([array.shape != shape for array in arrays]):
-        raise ValueError("All arrays must have the same shape.")
-    index_of_max_weight = np.argmax(weights)
-    return arrays[index_of_max_weight]
+from lib.image_processing.create_image_arrangement import create_image_arrangement
+from lib.image_processing.warp_without_cropping import warp_without_cropping
+from lib.image_processing.apply_h_matrix_to_point import apply_h_matrix_to_point
+from lib.image_processing.RGBAImage import RGBAImage
+from lib.image_processing.stitch_two import stitch_two
+from lib.image_processing.RGBAInfiniteMixingCanvas import RGBAInfiniteMixingCanvas
 
 
 def top_left_from_points(pts):
+    """
+    Obtains the top-eft corner of the smallest rectangle enclosing the given points
+    """
     pts = np.array(pts, float)
     return np.min(pts, axis=0)
 
 
-def points_range_x(pts):
-    return np.max(pts[:, 0]) - np.min(pts[:, 0])
-
-
-def points_range_y(pts):
-    return np.max(pts[:, 1]) - np.min(pts[:, 1])
-
-
-def top_right_from_points(pts):
-    pts = np.array(pts, float)
-    tl = top_left_from_points(pts)
-    return tl + np.array([points_range_x(pts), 0])
-
-
-def bottom_left_from_points(pts):
-    pts = np.array(pts, float)
-    tl = top_left_from_points(pts)
-    return tl + np.array([0, points_range_y(pts)])
-
-
-def bottom_right_from_points(pts):
-    pts = np.array(pts, float)
-    tl = top_left_from_points(pts)
-    return tl + np.array([points_range_x(pts), points_range_y(pts)])
-
-
-def extent_corners_from_points(pts):
-    return np.array(
-        [
-            top_left_from_points(pts),
-            top_right_from_points(pts),
-            bottom_right_from_points(pts),
-            bottom_left_from_points(pts),
-        ],
-        float,
-    )
-
-
-def center_from_points(pts):
-    pts = np.array(pts, float)
-    return np.mean(pts, axis=0)
-
-
-def perform_analysis_pass(input_folder, found_files):
+def compute_arrangement(input_folder, found_files):
+    """
+    Performs sequential stitching of the input images
+    and computes the boundaries of each image in the panorama
+    """
 
     debug_pairs_folder = os.path.join(os.getcwd(), "testing", "output", "debugpairs")
 
@@ -134,7 +47,7 @@ def perform_analysis_pass(input_folder, found_files):
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
 
-        print(f"Processing pair {i+1}/{len(found_files)-1}...")
+        print(f"Processing pair {i + 1}/{len(found_files) - 1}...")
 
         last_H = Hs[-1] if Hs else np.eye(3)
 
@@ -151,14 +64,17 @@ def perform_analysis_pass(input_folder, found_files):
         dpx2 = warp_without_cropping(pixels2.copy(), H)
         dpx2tlc = top_left_from_points(
             np.array(
-                [apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(pixels2).corners()]
+                [
+                    apply_h_matrix_to_point(corner, H)
+                    for corner in RGBAImage.from_pixels(pixels2).corners()
+                ]
             )
         )
 
         debug_canvas.put(dpx1, 0, 0)
         debug_canvas.put(dpx2, int(round(dpx2tlc[0])), int(round(dpx2tlc[1])))
 
-        debug_name = f"debug_pair_{i+1}.png"
+        debug_name = f"debug_pair_{i + 1}.png"
 
         Image.fromarray(debug_canvas.to_RGBA()).save(
             os.path.join(debug_pairs_folder, debug_name)
@@ -175,9 +91,11 @@ def perform_analysis_pass(input_folder, found_files):
             np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
         )
 
-
         corner_deltas = np.array(
-            [apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(pixels2).corners()]
+            [
+                apply_h_matrix_to_point(corner, H)
+                for corner in RGBAImage.from_pixels(pixels2).corners()
+            ]
         )
         delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
 
@@ -213,6 +131,11 @@ def perform_analysis_pass(input_folder, found_files):
 
 
 def perform_analysis(input_folder, output_file):
+    """
+    Collects the input files
+    computes the boundaries using sequential stitching
+    arranges the images into a panorama and saves the result
+    """
 
     if os.path.exists(output_file):
         if not os.path.isfile(output_file):
@@ -263,8 +186,8 @@ Please put the files in order with names that contain only integers.
     if len(missing) > 0:
         raise ValueError(
             f"""
-Missing one or more files:
-                         
+Missing one or files in the sequence.
+
 The lowest image index in your folder is {lowest}.
 The highest image index in your folder is {highest}.
 
@@ -281,7 +204,7 @@ You are missing the following files:
 
     init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1)
 
-    boundaries = perform_analysis_pass(input_folder, found_files)
+    boundaries = compute_arrangement(input_folder, found_files)
 
     anchors = [top_left_from_points(boundary) for boundary in boundaries]
 

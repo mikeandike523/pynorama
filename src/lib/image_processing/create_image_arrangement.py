@@ -44,7 +44,7 @@ def create_image_arrangement(
     infinite_canvas = RGBAInfiniteMixingCanvas()
 
     for i, [image, location] in enumerate(zip(images, locations)):
-        print(f"Processing image {i+1}/{len(images)}...")
+        print(f"Processing image {i + 1}/{len(images)}...")
         infinite_canvas.put(image, *list(np.round(np.array(location)).astype(int)))
 
     Image.fromarray(infinite_canvas.to_RGBA()).save(output_file)
