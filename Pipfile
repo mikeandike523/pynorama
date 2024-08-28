@@ -8,8 +8,6 @@ verify_ssl = true
 [packages]
 numpy = "*"
 pillow = "*"
-opencv-python = "*"
-opencv-contrib-python = "*"
 termcolor = "*"
 pympler = "*"
 humanfriendly = "*"
@@ -18,6 +16,8 @@ rasterio = "*"
 shapely = "*"
 tqdm = "*"
 requests = "*"
+opencv-python = "*"
+opencv-contrib-python = "*"
 
 [requires]
 python_version = "3.8"

@@ -1,8 +1,14 @@
+"""
+A utility to construct a large image
+from a collection of sub-images and their locations
+Mixes overlapping regions using the mean
+"""
+
+import os
 from typing import List
+
 import numpy as np
 from PIL import Image
-import os
-import shutil
 
 from .RGBAInfiniteMixingCanvas import RGBAInfiniteMixingCanvas
 
@@ -18,6 +24,11 @@ def save_image(image: np.ndarray, directory: str, filename: str) -> str:
 def create_image_arrangement(
     images: List[np.ndarray], locations: List[np.ndarray], output_file: str
 ) -> str:
+    """
+    A utility to construct a large image
+    from a collection of sub-images and their locations
+    Mixes overlapping regions using the mean
+    """
 
     locations = np.array(locations, float).round().astype(int)
 

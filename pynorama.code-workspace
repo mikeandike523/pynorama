@@ -5,6 +5,8 @@
 		}
 	],
 	"settings": {
+		"python.terminal.activateEnvInCurrentTerminal": false,
+		"python.terminal.activateEnvironment": false,
 		"python.analysis.extraPaths": [
 			"${workspaceFolder}/src",
 			"/Users/michaelsohnen/Projects/live-image-viewer"

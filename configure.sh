@@ -14,5 +14,3 @@ deactivate
 chmod +x ./__pipenv
 chmod +x ./__python
 chmod +x ./pynorama
-
-find src -type f -name "__init__.sh" -exec bash {} \;

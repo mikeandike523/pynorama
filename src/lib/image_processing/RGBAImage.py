@@ -11,6 +11,9 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 class RGBAImage:
+    """
+    A utility class for managing RGBA data
+    """
 
     def __init__(self, pixels: np.ndarray):
         self.pixels = pixels.copy()
@@ -25,6 +28,10 @@ class RGBAImage:
 
     @classmethod
     def check_pixels(cls, pixels: np.ndarray) -> bool:
+        """
+        Verifies the shape and datatype of the input pixel array
+        to ensure it is uint8 TGBA data
+        """
         assert pixels.ndim == 3, "Image must be in RGB format"
         assert pixels.shape[2] == 4, "Image must be in RGBA format"
         assert pixels.dtype == np.uint8, "Image pixel values must be of type np.uint8"
@@ -34,22 +41,31 @@ class RGBAImage:
 
     @classmethod
     def from_pixels(cls, pixels: np.ndarray) -> "RGBAImage":
+        """
+        Creates a new RGBAImage object from the given pixel array
+        Note: the RGBAImage copies the input pixel array to avoid modifying it
+        Note: the pixels will first be verified for shape and datatype
+        before creating the RGBAImage object
+        """
         cls.check_pixels(pixels)
         return cls(pixels)
 
     @classmethod
     def from_any_uint8_pixels(cls, pixels: np.ndarray) -> "RGBAImage":
         """
-        Takes in image data with 1-4 channels and adds data as needed to make it the RGBA format
+        Takes in image data with 1-4 channels
+        and adds data as needed to make it the RGBA format
 
         One channel -> RGBA image with RGB identical alpha channel
         Two channels -> Fills the B channel with all 0 and A channel with all 255
         Three channels -> RGB image and A channel is all 255
         Four channels -> RGBA image (unchanged)
 
-        Single channel data is squeezed as necessary before being converted to a consisten dimension
+        Single channel data is squeezed as necessary before being converted
+        to a consisten dimension
         This can be relevant in some cases where other algorithms
-        tend to add a trivial dimension to single-channel images to keep them consistent with multi channel images
+        tend to add a trivial dimension to single-channel images to keep them
+        consistent with multi channel images
 
 
         Squeezing also helps in the case wher emore complex algorithms,
@@ -115,6 +131,10 @@ class RGBAImage:
         return cls.from_pixels(pixels)
 
     def corners(self) -> List[np.ndarray]:
+        """
+        Obtain a list of the 4 corner points of the image
+        as a 2D numpy array (N,2)
+        """
         # A = topleft
         # B = topright
         # C = bottomright
@@ -157,7 +177,8 @@ class RGBAImage:
         # Create an empty image for the result with the same shape as the original image
         result_image = np.zeros_like(self.pixels)
 
-        # Reinsert copies of each channel of the source pixel data with the Otsu threshold mask applied
+        # Reinsert copies of each channel of the source pixel data
+        # with the Otsu threshold mask applied
         for channel in range(4):  # Iterate over RGBA channels
             result_image[:, :, channel] = self.pixels[:, :, channel] * binary_mask_bool
 
@@ -165,12 +186,21 @@ class RGBAImage:
         return RGBAImage(result_image)
 
     def to_greyscale(self) -> "RGBAImage":
+        """
+        Get a copy of this image in greyscale
+        which is constructed by taking the mean of R, G, B channels
+        flooring them and converting to uint8
+        """
         R, G, B, A = (self.pixels[:, :, i] for i in range(4))
         combined = 1 / 3 * (R.astype(float) + G.astype(float) + B.astype(float))
         grey = combined.astype(np.uint8)
         return RGBAImage(np.dstack((grey, grey, grey, A)).astype(np.uint8))
 
     def gaussian_blurred(self, sigma: float) -> "RGBAImage":
+        """
+        Returns a copy of this image with a Gaussian blur applied
+        according to the `gaussian_filter` method in scipy.ndimage
+        """
         if sigma == 0:
             return RGBAImage(self.pixels)
         blurred_image = gaussian_filter(self.pixels, sigma=sigma)

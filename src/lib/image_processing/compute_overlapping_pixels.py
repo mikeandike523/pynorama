@@ -1,7 +1,15 @@
+"""
+A utility for obtaining masks that represent
+the overlapping region of two images
+after the second image is transformed using a homography matrix
+"""
+
+from typing import Tuple
+
 import numpy as np
-from shapely.geometry import Polygon
 from rasterio import features
-from typing import Tuple, List
+from shapely.geometry import Polygon
+
 from .apply_h_matrix_to_point import apply_h_matrix_to_point
 
 
@@ -10,9 +18,11 @@ def create_polygon(corners: np.ndarray) -> Polygon:
     return Polygon(corners)
 
 
-def transform_corners(corners: np.ndarray, H: np.ndarray) -> np.ndarray:
+def transform_corners(corners: np.ndarray, homography: np.ndarray) -> np.ndarray:
     """Transform corners using the given homography matrix."""
-    return np.array([apply_h_matrix_to_point(point, H) for point in corners], float)
+    return np.array(
+        [apply_h_matrix_to_point(point, homography) for point in corners], float
+    )
 
 
 def compute_intersection(polygon1: Polygon, polygon2: Polygon) -> Polygon:
@@ -29,7 +39,7 @@ def rasterize_polygon(polygon: Polygon, shape: Tuple[int, int]) -> np.ndarray:
 
 
 def compute_overlapping_pixels(
-    A: np.ndarray, B: np.ndarray, H: np.ndarray
+    image_a: np.ndarray, image_b: np.ndarray, homography: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute overlapping pixels between two images using a homography matrix.
@@ -44,31 +54,35 @@ def compute_overlapping_pixels(
     mask_A: mask for overlapping region in A
     mask_B: mask for overlapping region in B
     """
-    HA, WA = A.shape[:2]
-    HB, WB = B.shape[:2]
+    height_a, width_a = image_a.shape[:2]
+    height_b, width_b = image_b.shape[:2]
 
-    B_target_onto_A_reference_H = H
-    A_target_onto_B_reference_H = np.linalg.inv(H)
+    b_target_onto_a_reference_h = homography
+    b_target_onto_a_reference_h = np.linalg.inv(homography)
 
-    init_corners_A = np.array([[0, 0], [WA, 0], [WA, HA], [0, HA]], float)
-    init_corners_B = np.array([[0, 0], [WB, 0], [WB, HB], [0, HB]], float)
-
-    transformed_corners_A = transform_corners(
-        init_corners_A, A_target_onto_B_reference_H
+    init_corners_a = np.array(
+        [[0, 0], [width_a, 0], [width_a, height_a], [0, height_a]], float
     )
-    transformed_corners_B = transform_corners(
-        init_corners_B, B_target_onto_A_reference_H
+    init_corners_b = np.array(
+        [[0, 0], [width_b, 0], [width_b, height_b], [0, height_b]], float
     )
 
-    polygon_A = create_polygon(init_corners_A)
-    polygon_B = create_polygon(init_corners_B)
-    transformed_polygon_A = create_polygon(transformed_corners_A)
-    transformed_polygon_B = create_polygon(transformed_corners_B)
+    transformed_corners_a = transform_corners(
+        init_corners_a, b_target_onto_a_reference_h
+    )
+    transformed_corners_b = transform_corners(
+        init_corners_b, b_target_onto_a_reference_h
+    )
 
-    intersection_in_B = compute_intersection(polygon_B, transformed_polygon_A)
-    intersection_in_A = compute_intersection(polygon_A, transformed_polygon_B)
+    polygon_a = create_polygon(init_corners_a)
+    polygon_b = create_polygon(init_corners_b)
+    transformed_polygon_a = create_polygon(transformed_corners_a)
+    transformed_polygon_b = create_polygon(transformed_corners_b)
 
-    mask_B = rasterize_polygon(intersection_in_B, (HB, WB))
-    mask_A = rasterize_polygon(intersection_in_A, (HA, WA))
+    intersection_in_b = compute_intersection(polygon_b, transformed_polygon_a)
+    intersection_in_b = compute_intersection(polygon_a, transformed_polygon_b)
 
-    return mask_A, mask_B
+    mask_b = rasterize_polygon(intersection_in_b, (height_b, width_b))
+    mask_a = rasterize_polygon(intersection_in_b, (height_a, width_a))
+
+    return mask_a, mask_b

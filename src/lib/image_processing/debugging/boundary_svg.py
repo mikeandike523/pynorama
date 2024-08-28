@@ -1,3 +1,11 @@
+"""
+A utility to create an SVG file showing the boundaries of each image
+in an assembled panorama
+
+Used primarily for debugging
+"""
+
+
 from typing import List
 import numpy as np
 

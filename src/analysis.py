@@ -175,21 +175,6 @@ def perform_analysis_pass(input_folder, found_files):
             np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
         )
 
-        # last_deltas = np.array(
-        #     [
-        #         corner - last_tlc
-        #         for corner in [
-        #             last_corner_A,
-        #             last_corner_B,
-        #             last_corner_C,
-        #             last_corner_D,
-        #         ]
-        #     ]
-        # )
-
-        # corner_deltas = np.array(
-        #     [apply_h_matrix_to_point(corner, H) for corner in last_deltas]
-        # )
 
         corner_deltas = np.array(
             [apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(pixels2).corners()]

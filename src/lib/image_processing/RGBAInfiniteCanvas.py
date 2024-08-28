@@ -1,8 +1,17 @@
-import numpy as np
 import humanfriendly
+import numpy as np
+from PIL import Image
 
 
 class RGBAInfiniteCanvas:
+    """
+    A class for placing RGBA subimages at varying locations on a virtual canvas
+    and computing the combined result
+
+    In this class, when placing a subimage, any pixle that is fully transparent
+    will not affect the canvas (i.e. takes on canvas existing value)
+    """
+
     def __init__(self, initial_width=0, initial_height=0):
         # Initialize an empty RGBA canvas with the given initial dimensions
         self.canvas = np.zeros((initial_height, initial_width, 4), dtype=np.uint8)
@@ -12,7 +21,7 @@ class RGBAInfiniteCanvas:
         self.max_x = initial_width
         self.max_y = initial_height
 
-    def expand_canvas(self, new_min_x, new_min_y, new_max_x, new_max_y):
+    def __expand_canvas(self, new_min_x, new_min_y, new_max_x, new_max_y):
         # Calculate new dimensions
         new_width = new_max_x - new_min_x
         new_height = new_max_y - new_min_y
@@ -38,6 +47,10 @@ class RGBAInfiniteCanvas:
         self.max_y = new_max_y
 
     def place_pixel_array(self, pixel_array, top_left_x=0, top_left_y=0):
+        """
+        Place a subimage with its top left orner at the specified location
+        """
+
         # Determine the dimensions of the incoming pixel array
         pixel_height, pixel_width, _ = pixel_array.shape
 
@@ -48,13 +61,15 @@ class RGBAInfiniteCanvas:
         required_max_y = max(self.max_y, top_left_y + pixel_height)
 
         # Expand the canvas if necessary
-        if (
-            required_min_x < self.min_x
-            or required_min_y < self.min_y
-            or required_max_x > self.max_x
-            or required_max_y > self.max_y
+        if any(
+            [
+                required_min_x < self.min_x,
+                required_min_y < self.min_y,
+                required_max_x > self.max_x,
+                required_max_y > self.max_y,
+            ]
         ):
-            self.expand_canvas(
+            self.__expand_canvas(
                 required_min_x, required_min_y, required_max_x, required_max_y
             )
 
@@ -75,7 +90,8 @@ class RGBAInfiniteCanvas:
         # Make a copy of the pixel array
         pixel_array_copy = pixel_array.copy()
 
-        # Set the values of pixel_array_copy to the values of existing pixels in the transparent regions
+        # Set the values of pixel_array_copy to the values of existing pixels
+        # in the transparent regions
         pixel_array_copy[transparent_region, :] = existing[transparent_region, :]
 
         # Place the pixel array onto the canvas
@@ -85,21 +101,24 @@ class RGBAInfiniteCanvas:
             :,
         ] = pixel_array_copy
 
-    def get_canvas(self):
-        return self.canvas
-
     def save_canvas(self, filename):
-        from PIL import Image
+        """Save the combined image to a file"""
 
         image = Image.fromarray(self.canvas, "RGBA")
         image.save(filename)
 
     def show_canvas(self):
-        from PIL import Image
+        """
+        Display the canvas using PIL's Image.show() method
+        """
 
         image = Image.fromarray(self.canvas, "RGBA")
         image.show()
 
     def measure_pixel_memory_footprint(self):
+        """
+        Get a human readable estimate of the memory footprint of the canvas
+        """
+
         size_in_bytes = self.canvas.nbytes
         return humanfriendly.format_size(size_in_bytes, binary=True)

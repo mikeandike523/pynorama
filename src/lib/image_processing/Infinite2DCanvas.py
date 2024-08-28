@@ -1,8 +1,26 @@
+"""
+A class where the caller can place subimages at
+different locations and the canvas will expand to fit
+
+Any pixels that are fully transparent will not affect
+the existing canvas when placed, but partially transparent pixels will overwrite
+alpha-based mixing is not yet supported
+"""
+
 import numpy as np
 import humanfriendly
 
 
 class Infinite2DCanvas:
+    """
+    A class where the caller can place subimages at
+    different locations and the canvas will expand to fit
+
+    Any pixels that are fully transparent will not affect
+    the existing canvas when placed, but partially transparent pixels will overwrite
+    alpha-based mixing is not yet supported
+    """
+
     def __init__(self, initial_width=0, initial_height=0, dtype=None):
         if dtype is None:
             raise ValueError("Data type (dtype) must be specified")
@@ -31,7 +49,8 @@ class Infinite2DCanvas:
         # Copy the old canvas into the new canvas
         old_height, old_width = self.canvas.shape
         new_canvas[
-            offset_y : offset_y + old_height, offset_x : offset_x + old_width
+            offset_y : offset_y + old_height,
+            offset_x : offset_x + old_width,
         ] = self.canvas
 
         # Update the canvas and bounds
@@ -42,6 +61,13 @@ class Infinite2DCanvas:
         self.max_y = new_max_y
 
     def put(self, pixels, x=0, y=0):
+        """
+        Place a subimage at location (x, y)
+        Fully transparent pixels will not affect the existing canvas
+        Partially transparent pixels will overwrite
+        as alpha-based mixing is not yet supported
+        """
+
         # Determine the dimensions of the incoming pixel array
         pixel_height, pixel_width = pixels.shape
 
@@ -52,11 +78,13 @@ class Infinite2DCanvas:
         required_max_y = max(self.max_y, y + pixel_height)
 
         # Expand the canvas if necessary
-        if (
-            required_min_x < self.min_x
-            or required_min_y < self.min_y
-            or required_max_x > self.max_x
-            or required_max_y > self.max_y
+        if any(
+            [
+                required_min_x < self.min_x,
+                required_min_y < self.min_y,
+                required_max_x > self.max_x,
+                required_max_y > self.max_y,
+            ]
         ):
             self.__expand_canvas(
                 required_min_x, required_min_y, required_max_x, required_max_y
@@ -66,13 +94,16 @@ class Infinite2DCanvas:
         canvas_x = x - self.min_x
         canvas_y = y - self.min_y
 
-        # Place the pixel array onto the canvas
         self.canvas[
-            canvas_y : canvas_y + pixel_height, canvas_x : canvas_x + pixel_width
+            canvas_y : canvas_y + pixel_height,
+            canvas_x : canvas_x + pixel_width,
         ] = pixels
 
     def get(self, x=0, y=0, width=0, height=0):
-
+        """
+        Get a window of pixels from the canvas at location (x, y)
+        and with dimensions (width, height)
+        """
 
         # Determine the required dimensions of the canvas
         required_min_x = min(self.min_x, x)
@@ -81,11 +112,13 @@ class Infinite2DCanvas:
         required_max_y = max(self.max_y, y + height)
 
         # Expand the canvas if necessary
-        if (
-            required_min_x < self.min_x
-            or required_min_y < self.min_y
-            or required_max_x > self.max_x
-            or required_max_y > self.max_y
+        if any(
+            [
+                required_min_x < self.min_x,
+                required_min_y < self.min_y,
+                required_max_x > self.max_x,
+                required_max_y > self.max_y,
+            ]
         ):
             self.__expand_canvas(
                 required_min_x, required_min_y, required_max_x, required_max_y
@@ -95,13 +128,19 @@ class Infinite2DCanvas:
         canvas_x = x - self.min_x
         canvas_y = y - self.min_y
 
-        return self.canvas[
-            canvas_y : canvas_y + height, canvas_x : canvas_x + width
-        ]
+        return self.canvas[canvas_y : canvas_y + height, canvas_x : canvas_x + width]
 
     def to_array(self):
+        """
+        Convert internal data back to a NumPy array.
+        Makes a copy and does not reference true internal data directly.
+        """
         return self.canvas.copy()
 
     def get_footprint(self):
+        """
+        Get a human readable estimate of the size of the underlying data
+        in this instancee
+        """
         size_in_bytes = self.canvas.nbytes
         return humanfriendly.format_size(size_in_bytes, binary=True)

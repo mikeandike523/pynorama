@@ -4,6 +4,12 @@ from .Infinite2DCanvas import Infinite2DCanvas
 
 
 class RGBAInfiniteMixingCanvas:
+    """
+    A virtual infinite canvas for placing subimages at different points,
+    where the overlapping regions are computed by the mean of each
+    subimage contribution
+    """
+
     def __init__(self):
         self.NR = Infinite2DCanvas(0, 0, float)
         self.NG = Infinite2DCanvas(0, 0, float)
@@ -11,6 +17,10 @@ class RGBAInfiniteMixingCanvas:
         self.DSamples = Infinite2DCanvas(0, 0, int)
 
     def put(self, pixels: np.ndarray, x: int, y: int):
+        """
+        Place a subimage at a given location
+        """
+
         H, W = pixels.shape[:2]
 
         R, G, B, A = [pixels[:, :, i].astype(float) / 255 for i in range(4)]
@@ -35,6 +45,11 @@ class RGBAInfiniteMixingCanvas:
         self.DSamples.put(new_DSamples, x, y)
 
     def to_RGBA(self):
+        """
+        Compute the final result (including overlap mixing) and return it as an
+        RGBA numpy array
+        """
+
         DSamples_array = self.DSamples.to_array()
         deletion_mask = DSamples_array == 0
         modified_DSamples_array = DSamples_array.copy()

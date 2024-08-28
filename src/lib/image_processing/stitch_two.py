@@ -11,6 +11,11 @@ from .compute_mse_overlap import compute_mse_overlap
 
 
 class StitchParams(Protocol):
+    """
+    An interface descirbing the relevant parameters
+    for SIFT + RANSAC based perspective statiching
+    """
+
     BLUR_SIGMA: float
     NUM_GOOD_MATCHES: int
     GOOD_MATCH_CUTOFF: float
@@ -32,6 +37,10 @@ ITERATION_TEST_STEP = 0.025
 
 
 class InsufficientMatchesError(ValueError):
+    """
+    An error thrown when not enough good SIFT matches are found
+    with the given stitch parameters
+    """
 
     def __init__(self, expected, actual):
         super().__init__(
@@ -53,7 +62,8 @@ def attempt_stitch_two_with_params(
     Arguments:
     A : ndarray - The reference image
     B : ndarray - The image to be transformed
-    exclude_fully_transparent : boolean - Whether to exclude matches in fully transparent regions
+    exclude_fully_transparent : boolean
+        Whether to exclude matches in fully transparent regions
     """
 
     A = (
@@ -161,7 +171,7 @@ def stitch_two(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     while tolerance_value < 1.0:
         print(
             colored(
-                f"Attempting to find stitch matrix as {100*tolerance_value:.2f}%",
+                f"Attempting to find stitch matrix as {100 * tolerance_value:.2f}%",
                 "blue",
             )
         )
