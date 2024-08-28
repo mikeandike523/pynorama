@@ -142,16 +142,16 @@ def perform_analysis_pass(input_folder, found_files):
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 1).pixels
 
         pixels1 = warp_without_cropping(pixels1.copy(), last_H)
+        pixels2 = warp_without_cropping(pixels2.copy(), last_H)
 
         H = stitch_two(pixels1, pixels2)
-
         debug_canvas = RGBAInfiniteMixingCanvas()
 
         dpx1 = pixels1.copy()
         dpx2 = warp_without_cropping(pixels2.copy(), H)
         dpx2tlc = top_left_from_points(
             np.array(
-                [apply_h_matrix_to_point(corner, H) for corner in init_image.corners()]
+                [apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(pixels2).corners()]
             )
         )
 
@@ -192,7 +192,7 @@ def perform_analysis_pass(input_folder, found_files):
         # )
 
         corner_deltas = np.array(
-            [apply_h_matrix_to_point(corner, H) for corner in init_image.corners()]
+            [apply_h_matrix_to_point(corner, H) for corner in RGBAImage.from_pixels(pixels2).corners()]
         )
         delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
 
