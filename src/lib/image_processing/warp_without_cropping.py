@@ -4,7 +4,7 @@ import numpy as np
 from .apply_h_matrix_to_point import apply_h_matrix_to_point
 
 
-def warp_without_cropping(img, H):
+def warp_without_cropping(img, H, background_rgba=(0, 0, 0, 0)):
     """
     Warps an image based on the given warped corners
     and expands the image with a specified background color.
@@ -16,8 +16,6 @@ def warp_without_cropping(img, H):
     Returns:
     numpy.ndarray: The warped image with the expanded background.
     """
-
-    background_color = (0, 0, 0, 0)
 
     # Get the size of the input image
     height, width = img.shape[:2]
@@ -47,7 +45,7 @@ def warp_without_cropping(img, H):
 
     # Create an RGBA image with the specified background color
     background_image = np.zeros((output_height, output_width, 4), dtype=np.uint8)
-    background_image[:, :, :] = background_color
+    background_image[:, :, :] = background_rgba
 
     # Warp the image
     warped_image = cv2.warpPerspective(img, H_adjusted, (output_width, output_height))

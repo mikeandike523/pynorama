@@ -6,12 +6,14 @@ is transformed using a homography matrix
 
 import numpy as np
 
+from lib.image_processing.debugging.live_image_viewer import send_image
+
+from .apply_h_matrix_to_point import apply_h_matrix_to_point
 from .compute_overlapping_pixels import compute_overlapping_pixels
+from .mix_into_opaque import mix_into_opaque
 from .RGBAImage import RGBAImage
 from .RGBAInfiniteCanvas import RGBAInfiniteCanvas
 from .warp_without_cropping import warp_without_cropping
-from .apply_h_matrix_to_point import apply_h_matrix_to_point
-from .mix_into_opaque import mix_into_opaque
 
 
 def compute_mse_overlap(image_a: np.ndarray, image_b: np.ndarray, homography):
@@ -45,9 +47,11 @@ def compute_mse_overlap(image_a: np.ndarray, image_b: np.ndarray, homography):
 
     tlc_x, tlc_y = warped_b_tlc_rounded
 
-    mask_a_as_rgba = np.dstack([np.where(mask_a, 0, 255).astype(np.uint8)] * 4)
+    mask_a_as_rgba = np.dstack([np.where(mask_a, 255, 0).astype(np.uint8)] * 4)
 
-    mask_b_as_rgba = np.dstack([np.where(mask_b, 0, 255).astype(np.uint8)] * 4)
+    mask_b_as_rgba = np.dstack([np.where(mask_b, 255, 0).astype(np.uint8)] * 4)
+
+    # send_image("mse masks", np.hstack([mask_a_as_rgba, mask_b_as_rgba]))
 
     mask_b_as_rgba_warped = warp_without_cropping(mask_b_as_rgba, homography)
 

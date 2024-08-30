@@ -1,3 +1,4 @@
+from functools import reduce
 import os
 import shutil
 
@@ -11,6 +12,7 @@ from lib.image_processing.apply_h_matrix_to_point import apply_h_matrix_to_point
 from lib.image_processing.RGBAImage import RGBAImage
 from lib.image_processing.stitch_two import stitch_two
 from lib.image_processing.RGBAInfiniteMixingCanvas import RGBAInfiniteMixingCanvas
+from lib.image_processing.debugging.live_image_viewer import send_image
 
 
 def top_left_from_points(pts):
@@ -19,6 +21,18 @@ def top_left_from_points(pts):
     """
     pts = np.array(pts, float)
     return np.min(pts, axis=0)
+
+
+def untranslate(H, width, height):
+    corners = np.array([[0, 0], [width, 0], [width, height], [0, height]])
+    transformed_corners = np.array(
+        [apply_h_matrix_to_point(corner, H) for corner in corners]
+    )
+    tlc = top_left_from_points(transformed_corners)
+
+    tmatrix = np.eye(3)
+    tmatrix[:2, 2] = -tlc
+    return np.dot(tmatrix, H)
 
 
 def compute_arrangement(input_folder, found_files):
@@ -34,28 +48,26 @@ def compute_arrangement(input_folder, found_files):
 
     os.makedirs(debug_pairs_folder, exist_ok=True)
 
-    Hs = []
+    Hs = [np.eye(3)]
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1)
+    warp_Hs = [np.eye(3)]
 
-    init_A, init_B, init_C, init_D = init_image.corners()
-
-    corner_seq_A = [init_A]
-    corner_seq_B = [init_B]
-    corner_seq_C = [init_C]
-    corner_seq_D = [init_D]
+    tlc_seq = [np.array([0, 0])]
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
 
         print(f"Processing pair {i + 1}/{len(found_files) - 1}...")
 
-        last_H = Hs[-1] if Hs else np.eye(3)
+        last_H = Hs[-1]
 
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 1).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 1).pixels
 
+        init_height, init_width = pixels1.shape[:2]
+
         pixels1 = warp_without_cropping(pixels1.copy(), last_H)
-        pixels2 = warp_without_cropping(pixels2.copy(), last_H)
+
+        warped_width, warped_height = pixels1.shape[:2]
 
         H = stitch_two(pixels1, pixels2)
         debug_canvas = RGBAInfiniteMixingCanvas()
@@ -80,54 +92,27 @@ def compute_arrangement(input_folder, found_files):
             os.path.join(debug_pairs_folder, debug_name)
         )
 
+        # send_image(f"debug_pair_{i + 1}", debug_canvas.to_RGBA())
+
         Hs.append(H)
 
-        last_corner_A = corner_seq_A[-1].copy()
-        last_corner_B = corner_seq_B[-1].copy()
-        last_corner_C = corner_seq_C[-1].copy()
-        last_corner_D = corner_seq_D[-1].copy()
+        last_tlc = tlc_seq[-1]
 
-        last_tlc = top_left_from_points(
-            np.array([last_corner_A, last_corner_B, last_corner_C, last_corner_D])
-        )
+        delta_tlc = apply_h_matrix_to_point(np.array([0, 0]), H)
 
-        corner_deltas = np.array(
-            [
-                apply_h_matrix_to_point(corner, H)
-                for corner in RGBAImage.from_pixels(pixels2).corners()
-            ]
-        )
-        delta_A, delta_B, delta_C, delta_D = list(corner_deltas)
+        new_tlc = last_tlc + delta_tlc
 
-        next_A = last_tlc + delta_A
-        next_B = last_tlc + delta_B
-        next_C = last_tlc + delta_C
-        next_D = last_tlc + delta_D
+        warp_H = untranslate(H, init_width, init_height)
 
-        corner_seq_A.append(next_A)
-        corner_seq_B.append(next_B)
-        corner_seq_C.append(next_C)
-        corner_seq_D.append(next_D)
+        warp_Hs.append(warp_H)
 
-        print(next_A, next_B, next_C, next_D)
+        tlc_seq.append(new_tlc)
 
-    print("Obtaining panorama segment boundaries...")
+    global_tlc = top_left_from_points(np.array(tlc_seq))
 
-    boundaries = [
-        np.array(corners, dtype=float)
-        for corners in zip(corner_seq_A, corner_seq_B, corner_seq_C, corner_seq_D)
-    ]
+    tlcs = [tlc - global_tlc for tlc in tlc_seq]
 
-    all_boundary_points = []
-
-    for boundary in boundaries:
-        all_boundary_points.extend(list(boundary))
-
-    tlc = top_left_from_points(all_boundary_points)
-
-    boundaries = [boundaries - tlc for boundaries in boundaries]
-
-    return boundaries
+    return warp_Hs, tlcs
 
 
 def perform_analysis(input_folder, output_file):
@@ -202,28 +187,17 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    init_image = RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1)
-
-    boundaries = compute_arrangement(input_folder, found_files)
-
-    anchors = [top_left_from_points(boundary) for boundary in boundaries]
-
-    deltas = [boundary - anchor for boundary, anchor in zip(boundaries, anchors)]
+    warp_Hs, tlcs = compute_arrangement(input_folder, found_files)
 
     warped_images = []
     locations = []
 
-    for anchor, delta, found_file in zip(anchors, deltas, found_files):
-
-        src = np.array(init_image.corners(), float).astype(np.float32)
-        dst = (delta).astype(np.float32)
-
-        H = cv2.getPerspectiveTransform(src, dst)
+    for tlc, warp_H, found_file in zip(tlcs, warp_Hs, found_files):
 
         image = RGBAImage.from_file(os.path.join(input_folder, found_file), 1)
 
-        warped_image = warp_without_cropping(image.pixels, H)
+        warped_image = warp_without_cropping(image.pixels, warp_H)
         warped_images.append(warped_image)
-        locations.append(anchor)
+        locations.append(tlc)
 
     create_image_arrangement(warped_images, locations, output_file)

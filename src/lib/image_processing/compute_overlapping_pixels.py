@@ -54,24 +54,24 @@ def compute_overlapping_pixels(
     mask_A: mask for overlapping region in A
     mask_B: mask for overlapping region in B
     """
-    height_a, width_a = image_a.shape[:2]
-    height_b, width_b = image_b.shape[:2]
+    HA, WA = image_a.shape[:2]
+    HB, WB = image_b.shape[:2]
 
-    b_target_onto_a_reference_h = homography
-    b_target_onto_a_reference_h = np.linalg.inv(homography)
+    BontoA = homography
+    AontoB = np.linalg.inv(homography)
 
     init_corners_a = np.array(
-        [[0, 0], [width_a, 0], [width_a, height_a], [0, height_a]], float
+        [[0, 0], [WA, 0], [WA, HA], [0, HA]], float
     )
     init_corners_b = np.array(
-        [[0, 0], [width_b, 0], [width_b, height_b], [0, height_b]], float
+        [[0, 0], [WB, 0], [WB, HB], [0, HB]], float
     )
 
     transformed_corners_a = transform_corners(
-        init_corners_a, b_target_onto_a_reference_h
+        init_corners_a, AontoB
     )
     transformed_corners_b = transform_corners(
-        init_corners_b, b_target_onto_a_reference_h
+        init_corners_b, BontoA
     )
 
     polygon_a = create_polygon(init_corners_a)
@@ -80,9 +80,9 @@ def compute_overlapping_pixels(
     transformed_polygon_b = create_polygon(transformed_corners_b)
 
     intersection_in_b = compute_intersection(polygon_b, transformed_polygon_a)
-    intersection_in_b = compute_intersection(polygon_a, transformed_polygon_b)
+    intersection_in_a = compute_intersection(polygon_a, transformed_polygon_b)
 
-    mask_b = rasterize_polygon(intersection_in_b, (height_b, width_b))
-    mask_a = rasterize_polygon(intersection_in_b, (height_a, width_a))
+    mask_b = rasterize_polygon(intersection_in_b, (HB, WB))
+    mask_a = rasterize_polygon(intersection_in_a, (HA, WA))
 
     return mask_a, mask_b
