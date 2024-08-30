@@ -2,6 +2,7 @@ pyenv
 **/__pycache__
 testing/resources
 testing/output
+testing/saved-results
 **/.DS_Store
 node_modules
 .liv-port

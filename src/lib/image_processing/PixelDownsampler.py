@@ -66,7 +66,7 @@ class PixelDownsampler:
         self.factor = factor
 
         self.interpolation_up = interpolation_up
-        self.interpolation = interpolation_down
+        self.interpolation_down = interpolation_down
 
         self.init_w = init_w
         self.init_h = init_h

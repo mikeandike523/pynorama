@@ -1,18 +1,18 @@
-from functools import reduce
 import os
 import shutil
 
-import cv2
 import numpy as np
 from PIL import Image
 
-from lib.image_processing.create_image_arrangement import create_image_arrangement
-from lib.image_processing.warp_without_cropping import warp_without_cropping
-from lib.image_processing.apply_h_matrix_to_point import apply_h_matrix_to_point
+from lib.image_processing.apply_h_matrix_to_point import \
+    apply_h_matrix_to_point
+from lib.image_processing.create_image_arrangement import \
+    create_image_arrangement
 from lib.image_processing.RGBAImage import RGBAImage
+from lib.image_processing.RGBAInfiniteMixingCanvas import \
+    RGBAInfiniteMixingCanvas
 from lib.image_processing.stitch_two import stitch_two
-from lib.image_processing.RGBAInfiniteMixingCanvas import RGBAInfiniteMixingCanvas
-from lib.image_processing.debugging.live_image_viewer import send_image
+from lib.image_processing.warp_without_cropping import warp_without_cropping
 
 
 def top_left_from_points(pts):
@@ -41,16 +41,9 @@ def compute_arrangement(input_folder, found_files):
     and computes the boundaries of each image in the panorama
     """
 
-    debug_pairs_folder = os.path.join(os.getcwd(), "testing", "output", "debugpairs")
-
-    if os.path.exists(debug_pairs_folder):
-        shutil.rmtree(debug_pairs_folder)
-
-    os.makedirs(debug_pairs_folder, exist_ok=True)
-
     Hs = [np.eye(3)]
 
-    warp_Hs = [np.eye(3)]
+    warped_images = [RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1).pixels]
 
     tlc_seq = [np.array([0, 0])]
 
@@ -58,61 +51,31 @@ def compute_arrangement(input_folder, found_files):
 
         print(f"Processing pair {i + 1}/{len(found_files) - 1}...")
 
-        last_H = Hs[-1]
-
         pixels1 = RGBAImage.from_file(os.path.join(input_folder, file1), 1).pixels
         pixels2 = RGBAImage.from_file(os.path.join(input_folder, file2), 1).pixels
 
-        init_height, init_width = pixels1.shape[:2]
+        height, width = pixels1.shape[:2]
 
-        pixels1 = warp_without_cropping(pixels1.copy(), last_H)
-
-        warped_width, warped_height = pixels1.shape[:2]
-
+        last_H = Hs[-1]
         H = stitch_two(pixels1, pixels2)
-        debug_canvas = RGBAInfiniteMixingCanvas()
-
-        dpx1 = pixels1.copy()
-        dpx2 = warp_without_cropping(pixels2.copy(), H)
-        dpx2tlc = top_left_from_points(
-            np.array(
-                [
-                    apply_h_matrix_to_point(corner, H)
-                    for corner in RGBAImage.from_pixels(pixels2).corners()
-                ]
-            )
-        )
-
-        debug_canvas.put(dpx1, 0, 0)
-        debug_canvas.put(dpx2, int(round(dpx2tlc[0])), int(round(dpx2tlc[1])))
-
-        debug_name = f"debug_pair_{i + 1}.png"
-
-        Image.fromarray(debug_canvas.to_RGBA()).save(
-            os.path.join(debug_pairs_folder, debug_name)
-        )
-
-        # send_image(f"debug_pair_{i + 1}", debug_canvas.to_RGBA())
-
-        Hs.append(H)
 
         last_tlc = tlc_seq[-1]
-
-        delta_tlc = apply_h_matrix_to_point(np.array([0, 0]), H)
-
+        delta_tlc = apply_h_matrix_to_point(np.array([0, 0]), np.dot(
+            H,
+            untranslate(last_H, width, height)
+        ))
         new_tlc = last_tlc + delta_tlc
 
-        warp_H = untranslate(H, init_width, init_height)
-
-        warp_Hs.append(warp_H)
-
+        warped_images.append(
+            warp_without_cropping(pixels2, np.dot(
+                untranslate(H, width, height),
+                untranslate(last_H, width, height),
+            ))
+        )
+        Hs.append(H)
         tlc_seq.append(new_tlc)
 
-    global_tlc = top_left_from_points(np.array(tlc_seq))
-
-    tlcs = [tlc - global_tlc for tlc in tlc_seq]
-
-    return warp_Hs, tlcs
+    return warped_images, tlc_seq
 
 
 def perform_analysis(input_folder, output_file):
@@ -187,17 +150,6 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    warp_Hs, tlcs = compute_arrangement(input_folder, found_files)
-
-    warped_images = []
-    locations = []
-
-    for tlc, warp_H, found_file in zip(tlcs, warp_Hs, found_files):
-
-        image = RGBAImage.from_file(os.path.join(input_folder, found_file), 1)
-
-        warped_image = warp_without_cropping(image.pixels, warp_H)
-        warped_images.append(warped_image)
-        locations.append(tlc)
+    warped_images, locations = compute_arrangement(input_folder, found_files)
 
     create_image_arrangement(warped_images, locations, output_file)
