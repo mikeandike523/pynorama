@@ -1,16 +1,12 @@
 import os
-import shutil
 
 import numpy as np
-from PIL import Image
+import scipy.linalg
+from termcolor import colored
 
-from lib.image_processing.apply_h_matrix_to_point import \
-    apply_h_matrix_to_point
-from lib.image_processing.create_image_arrangement import \
-    create_image_arrangement
+from lib.image_processing.apply_h_matrix_to_point import apply_h_matrix_to_point
+from lib.image_processing.create_image_arrangement import create_image_arrangement
 from lib.image_processing.RGBAImage import RGBAImage
-from lib.image_processing.RGBAInfiniteMixingCanvas import \
-    RGBAInfiniteMixingCanvas
 from lib.image_processing.stitch_two import stitch_two
 from lib.image_processing.warp_without_cropping import warp_without_cropping
 
@@ -24,6 +20,12 @@ def top_left_from_points(pts):
 
 
 def untranslate(H, width, height):
+    """
+    A nonlinear transformation in Homogenous 2D coordinate space
+    That will remove translation/offset from a homography transformation
+    After applying to a rectangle of size with and height
+    """
+
     corners = np.array([[0, 0], [width, 0], [width, height], [0, height]])
     transformed_corners = np.array(
         [apply_h_matrix_to_point(corner, H) for corner in corners]
@@ -43,9 +45,8 @@ def compute_arrangement(input_folder, found_files):
 
     Hs = [np.eye(3)]
 
-    warped_images = [RGBAImage.from_file(os.path.join(input_folder, found_files[0]), 1).pixels]
-
-    tlc_seq = [np.array([0, 0])]
+    warp_matrices = [np.eye(3)]
+    tlc_seq = [np.array([0, 0], float)]
 
     for i, (file1, file2) in enumerate(zip(found_files[:-1], found_files[1:])):
 
@@ -60,25 +61,63 @@ def compute_arrangement(input_folder, found_files):
         H = stitch_two(pixels1, pixels2)
 
         last_tlc = tlc_seq[-1]
-        delta_tlc = apply_h_matrix_to_point(np.array([0, 0]), np.dot(
-            H,
-            untranslate(last_H, width, height)
-        ))
-        new_tlc = last_tlc + delta_tlc
 
-        warped_images.append(
-            warp_without_cropping(pixels2, np.dot(
-                untranslate(H, width, height),
-                untranslate(last_H, width, height),
-            ))
+        delta_matrix = np.dot(H, untranslate(last_H, width, height))
+
+        new_tlc = last_tlc + apply_h_matrix_to_point(
+            np.array([0, 0], float), delta_matrix
         )
-        Hs.append(H)
+
         tlc_seq.append(new_tlc)
 
-    return warped_images, tlc_seq
+        warp_matrix = np.dot(
+            untranslate(H, width, height),
+            untranslate(last_H, width, height),
+        )
+
+        warp_matrices.append(warp_matrix)
+
+    return warp_matrices, tlc_seq
 
 
-def perform_analysis(input_folder, output_file):
+def compute_arrangement_fwd_bkwd(input_folder, found_files):
+
+    print(colored("Starting forward pass..."))
+    warp_matrices_fwd, tlc_seq_fwd = compute_arrangement(input_folder, found_files)
+    print(colored("Done.", "green"))
+
+    print(colored("Starting backward pass..."))
+    warp_matrices_bkwd, tlc_seq_bkwd = compute_arrangement(
+        input_folder, list(reversed(found_files))
+    )
+    print(colored("Done.", "green"))
+    warp_matrices_bkwd = list(reversed(warp_matrices_bkwd))
+    tlc_seq_bkwd = list(reversed(tlc_seq_bkwd))
+
+    global_tlc_fwd = top_left_from_points(tlc_seq_fwd)
+    global_tlc_bkwd = top_left_from_points(tlc_seq_bkwd)
+
+    tlc_seq_fwd = np.array([tlc - global_tlc_fwd for tlc in tlc_seq_fwd])
+    tlc_seq_bkwd = np.array([tlc - global_tlc_bkwd for tlc in tlc_seq_bkwd])
+    mean_tlc_seq = 0.5 * (tlc_seq_fwd + tlc_seq_bkwd)
+    mean_warp_matrices = [
+        logarithmic_matrix_mean(fwd, bkwd)
+        for fwd, bkwd in zip(warp_matrices_fwd, warp_matrices_bkwd)
+    ]
+
+    return mean_warp_matrices, mean_tlc_seq
+
+
+def logarithmic_matrix_mean(A, B):
+    """
+    Uses logarithms and exponents to combine two matrices
+
+    Uses functions such as np.logm and np.expm
+    """
+    return scipy.linalg.expm(0.5 * (scipy.linalg.logm(A) + scipy.linalg.logm(B)))
+
+
+def perform_analysis(input_folder, output_file, arrangement_downsample_factor=1):
     """
     Collects the input files
     computes the boundaries using sequential stitching
@@ -150,6 +189,19 @@ You are missing the following files:
     for file in found_files:
         print(file)
 
-    warped_images, locations = compute_arrangement(input_folder, found_files)
+    mean_warp_matrices, mean_tlc_seq = compute_arrangement_fwd_bkwd(
+        input_folder, found_files
+    )
+
+    locations = list(np.array(mean_tlc_seq, float) / arrangement_downsample_factor)
+    warped_images = [
+        warp_without_cropping(
+            RGBAImage.from_file(
+                os.path.join(input_folder, found_file), arrangement_downsample_factor
+            ).pixels,
+            mean_warp_matrix,
+        )
+        for found_file, mean_warp_matrix in zip(found_files, mean_warp_matrices)
+    ]
 
     create_image_arrangement(warped_images, locations, output_file)
