@@ -11,10 +11,10 @@ class RGBAInfiniteMixingCanvas:
     """
 
     def __init__(self):
-        self.NR = Infinite2DCanvas(0, 0, float)
-        self.NG = Infinite2DCanvas(0, 0, float)
-        self.NB = Infinite2DCanvas(0, 0, float)
-        self.DSamples = Infinite2DCanvas(0, 0, int)
+        self.NR = Infinite2DCanvas(float)
+        self.NG = Infinite2DCanvas(float)
+        self.NB = Infinite2DCanvas(float)
+        self.DSamples = Infinite2DCanvas(int)
 
     def put(self, pixels: np.ndarray, x: int, y: int):
         """

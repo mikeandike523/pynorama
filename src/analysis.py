@@ -120,43 +120,6 @@ def logarithmic_matrix_mean(A, B):
     """
     return scipy.linalg.expm(0.5 * (scipy.linalg.logm(A) + scipy.linalg.logm(B)))
 
-
-def geometric_matrix_mean(A, B):
-    # Step 1: Compute the matrix product AB
-    AB = np.dot(A, B)
-
-    # Step 2: Attempt to compute the matrix square root of AB
-    try:
-        sqrt_AB = sqrtm(AB)
-
-        # Step 3: Verify that the square root is valid
-        # Check for NaNs
-        if np.any(np.isnan(sqrt_AB)):
-            raise ValueError(
-                "Matrix square root contains NaN values, indicating the square root does not exist."
-            )
-
-        # Check if (sqrt_AB)^2 is close to AB
-        if not np.allclose(np.dot(sqrt_AB, sqrt_AB), AB):
-            raise ValueError(
-                "Computed matrix square root does not satisfy the equation (sqrt_AB)^2 = AB."
-            )
-
-        # Check if the square root is real, if expected
-        if np.iscomplexobj(sqrt_AB):
-            raise ValueError(
-                "Matrix square root is complex. Expected a real matrix square root."
-            )
-
-        # If all checks pass, return the square root
-        return sqrt_AB
-
-    except la.LinAlgError as e:
-        raise ValueError(
-            "Matrix square root computation failed. The square root may not exist."
-        ) from e
-
-
 def perform_analysis(input_folder, output_file, arrangement_downsample_factor=1):
     """
     Collects the input files
