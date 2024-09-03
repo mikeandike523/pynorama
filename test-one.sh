@@ -24,7 +24,7 @@ dir_basename="$1"
 output_path="$output_dir/$dir_basename"
 
 # Run the command
-./pynorama "./testing/resources/test-sets/$dir_basename" "$output_path.png" --verbose
+./pynorama "./testing/resources/test-sets/$dir_basename" "$output_path.svg" --verbose
 
 # Check if the command was successful
 if [ $? -ne 0 ]; then

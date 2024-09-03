@@ -5,7 +5,7 @@ import scipy.linalg
 from termcolor import colored
 
 from lib.image_processing.apply_h_matrix_to_point import apply_h_matrix_to_point
-from lib.image_processing.create_image_arrangement import create_image_arrangement
+from lib.image_processing.create_image_arrangement import create_svg_image_arrangement
 from lib.image_processing.RGBAImage import RGBAImage
 from lib.image_processing.stitch_two import stitch_two
 from lib.image_processing.warp_without_cropping import warp_without_cropping
@@ -244,4 +244,4 @@ You are missing the following files:
         for found_file, mean_warp_matrix in zip(found_files, mean_warp_matrices)
     ]
 
-    create_image_arrangement(warped_images, locations, output_file)
+    create_svg_image_arrangement(warped_images, locations, output_file)
